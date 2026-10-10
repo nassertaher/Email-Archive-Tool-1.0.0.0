@@ -593,6 +593,20 @@ class MailToolApp:
         ttk.Button(bar, text='Open config', width=12,
                    command=lambda: _open_path(self.config_path)).pack(side='left', padx=8)
 
+        self.status_var = _var('')
+        ttk.Label(content, textvariable=self.status_var, anchor='w').pack(
+            side='bottom', fill='x', pady=(0, 4))
+        kw_frame = ttk.Frame(content)
+        kw_frame.pack(side='bottom', fill='x', pady=(0, 6))
+        ttk.Label(kw_frame, text='Hidden senders (exclude_keywords):').pack(side='left')
+        self.keywords = tk.Listbox(kw_frame, height=3, exportselection=False)
+        self.keywords.pack(side='left', fill='x', expand=True, padx=6)
+        self.keywords.configure(bg=THEME['field'], fg=THEME['text'],
+                                selectbackground=THEME['accent'], selectforeground='#ffffff',
+                                highlightthickness=0, font=(self.ui_font, 9))
+        ttk.Button(kw_frame, text='Remove', command=self.remove_keyword).pack(side='left', padx=2)
+        ttk.Button(kw_frame, text='Clear all', command=self.clear_keywords).pack(side='left', padx=2)
+
         panes = ttk.PanedWindow(content, orient='vertical')
         panes.pack(fill='both', expand=True, pady=4)
 
@@ -834,19 +848,6 @@ class MailToolApp:
         self.log_text.configure(bg=THEME['field'], fg=THEME['text'], insertbackground=THEME['text'],
                                 relief='flat', padx=8, pady=6, font=(self.ui_font, 9))
 
-        kw_frame = ttk.Frame(content)
-        kw_frame.pack(fill='x', pady=(0, 6))
-        ttk.Label(kw_frame, text='Hidden senders (exclude_keywords):').pack(side='left')
-        self.keywords = tk.Listbox(kw_frame, height=3, exportselection=False)
-        self.keywords.pack(side='left', fill='x', expand=True, padx=6)
-        self.keywords.configure(bg=THEME['field'], fg=THEME['text'],
-                                selectbackground=THEME['accent'], selectforeground='#ffffff',
-                                highlightthickness=0, font=(self.ui_font, 9))
-        ttk.Button(kw_frame, text='Remove', command=self.remove_keyword).pack(side='left', padx=2)
-        ttk.Button(kw_frame, text='Clear all', command=self.clear_keywords).pack(side='left', padx=2)
-
-        self.status_var = _var('')
-        ttk.Label(content, textvariable=self.status_var, anchor='w').pack(fill='x', pady=(0, 4))
         self.refresh_keyword_list()
         self.refresh_tree()
         self.refresh_archive()
