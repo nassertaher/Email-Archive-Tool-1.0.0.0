@@ -18,7 +18,7 @@ No data ever leaves the computer except the IMAP connection to the user's own ma
 |---|---|
 | **[EmailArchiveTool.exe](https://github.com/nassertaher/Email-Archive-Tool-1.0.0.0/releases/latest/download/EmailArchiveTool.exe)** | The program (single file, no Python needed) |
 | **[EmailArchiveTool_Manual.pdf](https://github.com/nassertaher/Email-Archive-Tool-1.0.0.0/releases/latest/download/EmailArchiveTool_Manual.pdf)** | The step-by-step manual |
-| **[Email Archive Tool 1.0.0.0.zip](https://github.com/nassertaher/Email-Archive-Tool-1.0.0.0/releases/latest/download/Email%20Archive%20Tool%201.0.0.0.zip)** | Both files together |
+| **[EmailArchiveTool-1.0.0.0.zip](https://github.com/nassertaher/Email-Archive-Tool-1.0.0.0/releases/latest/download/EmailArchiveTool-1.0.0.0.zip)** | Both files together |
 
 **How to use:** download `EmailArchiveTool.exe` and the manual, put them in the same folder, then double-click the exe. That's it - on the first run it creates an **Email Archive Tool** shortcut on your Desktop and keeps its data next to itself. Uninstall any time from the app's **Help** sidebar (it deletes its data, the shortcut and the program).
 
