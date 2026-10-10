@@ -506,7 +506,6 @@ class MailToolApp:
         self.selected_keys = set()
         self.hidden_names = set(self.config.get('exclude_keywords') or [])
         self.seen = archive.load_seen(self.folder)
-        self.file_entries = []
         self.rowmap = {}
         self.log_rows = []
         self.archive_filtered = []
@@ -821,30 +820,6 @@ class MailToolApp:
         dash_frame.rowconfigure(4, weight=1)
         dash_frame.columnconfigure(0, weight=1)
         dash_frame.columnconfigure(1, weight=1)
-
-        files_frame = ttk.Frame(notes)
-        notes.add(files_frame, text='Files')
-        files_bar = ttk.Frame(files_frame)
-        files_bar.pack(fill='x', pady=(3, 4))
-        ttk.Button(files_bar, text='Open', command=self.open_selected_file).pack(side='left', padx=3)
-        ttk.Button(files_bar, text='Open attachments folder',
-                   command=lambda: _open_path(os.path.join(self.folder, 'Attachments'))).pack(side='left', padx=3)
-        ttk.Label(files_bar, text='Click an email (or a thread) on the Emails tab to show its files; double-click a file to open it.').pack(side='left', padx=8)
-        files_body = ttk.Frame(files_frame)
-        files_body.pack(fill='both', expand=True)
-        self.files_tree = ttk.Treeview(files_body, columns=('file', 'kind'), show='headings',
-                                       selectmode='browse')
-        self.files_tree.heading('file', text='File')
-        self.files_tree.heading('kind', text='Kind')
-        self.files_tree.column('file', width=560, stretch=True)
-        self.files_tree.column('kind', width=110, anchor='center', stretch=False)
-        files_y = ttk.Scrollbar(files_body, orient='vertical', command=self.files_tree.yview)
-        self.files_tree.configure(yscrollcommand=files_y.set)
-        self.files_tree.grid(row=0, column=0, sticky='nsew')
-        files_y.grid(row=0, column=1, sticky='ns')
-        files_body.rowconfigure(0, weight=1)
-        files_body.columnconfigure(0, weight=1)
-        self.files_tree.bind('<Double-1>', lambda event: self.open_selected_file())
 
         log_frame = ttk.Frame(panes)
         panes.add(log_frame, weight=1)
@@ -1454,67 +1429,12 @@ class MailToolApp:
         if kind == 'thread':
             if column == '#1':
                 self.toggle_thread(key)
-                return
-            self.show_files_for_thread(key)
             return
-        index = key
-        item = self.summaries[index]
+        item = self.summaries[key]
         if column == '#1':
             self.toggle_thread(item.get('thread_no') or 0, fallback_key=item['key'])
         elif column == '#2':
             self.toggle_hide(item)
-        else:
-            self.show_files_for(item)
-
-    def show_files_for(self, item):
-        ref = self.seen.get(item['key'])
-        if not ref:
-            self._populate_files([])
-            self.status(f'Not archived yet - {item.get("subject") or "(no subject)"} has no files.')
-            return
-        entries = files_for_message(ref, item.get('from_email') or '', item.get('date') or '',
-                                    item.get('subject') or '', self.folder)
-        self._populate_files(entries)
-        self.status(f'Files for {ref} - {item.get("subject") or "(no subject)"}')
-
-    def show_files_for_thread(self, thread_no):
-        refs = {self.seen.get(item['key']) for item in self.summaries
-                if (item.get('thread_no') or 0) == thread_no}
-        refs.discard(None)
-        if not refs:
-            self._populate_files([])
-            self.status(f'Thread {thread_no} is not archived yet.')
-            return
-        ref = sorted(refs)[0]
-        self._populate_files(files_for_thread(ref, self.folder))
-        self.status(f'Files for thread {thread_no} - {ref}')
-
-    def _populate_files(self, entries):
-        self.files_tree.delete(*self.files_tree.get_children())
-        self.file_entries = []
-        if not entries:
-            self.files_tree.insert('', 'end', values=('No files found - archive the email or thread first.', ''))
-            return
-        for label, kind, path in entries:
-            self.file_entries.append(path)
-            self.files_tree.insert('', 'end', values=(label, kind))
-
-    def open_selected_file(self):
-        selection = self.files_tree.selection()
-        if not selection:
-            self.status('Click a file first.')
-            return
-        prefix = ''.join(ch for ch in selection[0] if ch.isdigit())
-        if not prefix:
-            return
-        index = int(prefix) - 1
-        if index >= len(self.file_entries):
-            return
-        path = self.file_entries[index]
-        if not os.path.exists(path):
-            self.status(f'File is missing: {path}')
-            return
-        _open_path(path)
 
     def toggle_thread(self, thread_no, fallback_key=None):
         if thread_no:
@@ -1588,7 +1508,6 @@ class MailToolApp:
             self.summaries = payload
             self.selected_keys = set()
             self.seen = archive.load_seen(self.folder)
-            self._populate_files([])
             self.refresh_tree()
             self.status(f'{len(self.summaries)} email(s) shown.')
         elif event == 'error':

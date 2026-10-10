@@ -128,7 +128,7 @@ python gui.py          :: or:  python gui.py --config D:\path\to\config.json
 - **Fetch emails** - runs in a background thread; every status line appears in the log pane while the list fills with the conversation threads.
 - **Keep / Hide checkboxes** - click the **Keep** column of a thread to mark it for archiving (the whole thread); click the **Hide** column of a sender to add its **name and email address** to `exclude_keywords` immediately. Archived messages show a tick in the Keep column.
 - **Filter box** above the list - type any text to keep only messages whose **sender or subject** contains it. Unread messages (IMAP `\Seen` flag) are shown in **bold red**.
-- **Files tab** - click a message (or thread) and the Files tab lists its attachments plus the shared thread PDF. Double-click to open; an *Open attachments folder* button is there too.
+- **Open emails and files** - after archiving, select a record on the **Archive tab** and use **Open PDF**, **Open EML** or **Open attachments folder** to view its files.
 - **Archive selected** (whole threads, incremental) and **Export Excel**, plus a hidden-senders panel to remove or clear keywords.
 - **Help sidebar** - **Open PDF Manual**, **Use dark mode / Use light mode**, **About**, and **Uninstall (remove all data)**.
 
