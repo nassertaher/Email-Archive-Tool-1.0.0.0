@@ -307,6 +307,26 @@ def read_config_quiet():
         return {}
 
 
+def read_log_rows(root):
+    path = os.path.join(root, 'log.csv')
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, newline='', encoding='utf-8-sig') as handle:
+            return [dict(row) for row in csv.DictReader(handle)]
+    except OSError:
+        return []
+
+
+def log_row_sort_key(row, column):
+    value = str(row.get(column) or '').strip()
+    if column in ('Ref No.', 'Transaction Date', 'Response Date'):
+        numbers = re.findall(r'\d+', value)
+        if numbers:
+            return (0, tuple(int(part) for part in numbers), value.casefold())
+    return (1, value.casefold(), value.casefold())
+
+
 def remove_local_data(delete_archives):
     config = read_config_quiet()
     root = resolve_root(config)
@@ -1258,6 +1278,18 @@ def extract_body(message):
     if chunks:
         return '\n\n'.join(chunks)
     return '(no message body)'
+
+
+def eml_body(path):
+    try:
+        with open(path, 'rb') as handle:
+            message = message_from_bytes(handle.read(), policy=policy.default)
+    except (OSError, ValueError):
+        return '(could not read the saved email)'
+    try:
+        return extract_body(message)
+    except Exception as exc:
+        return f'(could not read the message body: {exc})'
 
 
 def build_record(message, config, fallback_date=''):

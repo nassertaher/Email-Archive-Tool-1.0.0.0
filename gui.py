@@ -482,6 +482,7 @@ class MailToolApp:
         self.seen = archive.load_seen(self.folder)
         self.file_entries = []
         self.rowmap = {}
+        self.log_rows = []
         self.worker = None
         self.build_widgets()
         LOG_TO_UI.append(self.log)
@@ -584,6 +585,34 @@ class MailToolApp:
         self.tree.tag_configure('alt', background=THEME['alt'])
         self.tree.bind('<Button-1>', self.on_click)
 
+        archive_frame = ttk.Frame(notes)
+        notes.add(archive_frame, text='Archive')
+        arch_bar = ttk.Frame(archive_frame)
+        arch_bar.grid(row=0, column=0, columnspan=2, sticky='we', pady=(0, 3))
+        ttk.Button(arch_bar, text='Refresh', command=self.refresh_archive).pack(side='left')
+        self.arch_count = _var('')
+        ttk.Label(arch_bar, textvariable=self.arch_count).pack(side='left', padx=8)
+        ttk.Label(arch_bar, text='Double-click a row to open its PDF.').pack(side='left', padx=8)
+        self.archive_tree = ttk.Treeview(
+            archive_frame,
+            columns=('ref', 'date', 'agency', 'sender', 'subject',
+                     'action', 'response', 'attachments'),
+            show='headings', selectmode='browse')
+        for key, text, width, stretch in (
+                ('ref', 'Ref No.', 110, False), ('date', 'Date', 90, False),
+                ('agency', 'Agency', 150, False), ('sender', 'Sender', 180, False),
+                ('subject', 'Subject', 320, True), ('action', 'Action', 120, False),
+                ('response', 'Response', 100, False), ('attachments', 'Attachments', 160, False)):
+            self.archive_tree.heading(key, text=text)
+            self.archive_tree.column(key, width=width, anchor='w', stretch=stretch)
+        arch_y = ttk.Scrollbar(archive_frame, orient='vertical', command=self.archive_tree.yview)
+        self.archive_tree.configure(yscrollcommand=arch_y.set)
+        self.archive_tree.grid(row=1, column=0, sticky='nsew')
+        arch_y.grid(row=1, column=1, sticky='ns')
+        archive_frame.rowconfigure(1, weight=1)
+        archive_frame.columnconfigure(0, weight=1)
+        self.archive_tree.bind('<Double-1>', lambda event: self.open_archive_pdf())
+
         files_frame = ttk.Frame(notes)
         notes.add(files_frame, text='Files')
         files_bar = ttk.Frame(files_frame)
@@ -635,6 +664,7 @@ class MailToolApp:
         ttk.Label(content, textvariable=self.status_var, anchor='w').pack(fill='x', pady=(0, 4))
         self.refresh_keyword_list()
         self.refresh_tree()
+        self.refresh_archive()
 
     # ----------------------------------------------------------- log/status
     def log(self, text):
@@ -892,6 +922,43 @@ class MailToolApp:
         for word in self.config.get('exclude_keywords') or []:
             self.keywords.insert('end', word)
 
+    # ---------------------------------------------------------- archive tab
+    def refresh_archive(self):
+        self.log_rows = archive.read_log_rows(self.folder)
+        self.populate_archive()
+
+    def populate_archive(self):
+        self.archive_tree.delete(*self.archive_tree.get_children())
+        rows = getattr(self, 'log_rows', [])
+        for index, row in enumerate(rows):
+            self.archive_tree.insert('', 'end', iid='log-%d' % index, values=(
+                row.get('Ref No.', ''), row.get('Transaction Date', ''),
+                row.get('Agency', ''), row.get('Sender Name', '') or row.get('Sender Email', ''),
+                row.get('Subject', ''), row.get('Action', ''),
+                row.get('Response Date', ''), row.get('Attachments', '')))
+        self.arch_count.set(f'{len(rows)} archived record(s).')
+
+    def open_archive_pdf(self):
+        selection = self.archive_tree.selection()
+        if not selection:
+            return
+        prefix = ''.join(ch for ch in selection[0] if ch.isdigit())
+        if not prefix:
+            return
+        rows = getattr(self, 'log_rows', [])
+        index = int(prefix) - 1
+        if not 0 <= index < len(rows):
+            return
+        ref = str(rows[index].get('Ref No.') or '').strip()
+        if not ref:
+            self.status('This record has no Ref No.')
+            return
+        pdf = os.path.join(self.folder, 'PDF', ref + '.pdf')
+        if os.path.exists(pdf):
+            _open_path(pdf)
+        else:
+            self.status(f'PDF not found: {pdf}')
+
     # ----------------------------------------------------------- tree
     def refresh_tree(self):
         self.tree.delete(*self.tree.get_children())
@@ -1082,6 +1149,7 @@ class MailToolApp:
             for item in self.summaries:
                 item['archived'] = item['key'] in self.seen
             self.refresh_tree()
+            self.refresh_archive()
             self.status('Archive finished - see the log.')
 
     def on_close(self):

@@ -50,7 +50,7 @@ public repo (see README). Never commit personal files - `config.json`,
 
 ## Phase 1 - Archive browser (MVP)
 
-- [ ] 1.1 Archive tab reads log.csv directly in the UI + Refresh
+- [x] 1.1 Archive tab reads log.csv directly in the UI + Refresh
 - [ ] 1.2 Sortable columns (click a heading)
 - [ ] 1.3 Filters: free text, date range, agency, action, has-attachments
 - [ ] 1.4 Detail pane: all fields + message body (from EML) + open PDF/EML/attachments
