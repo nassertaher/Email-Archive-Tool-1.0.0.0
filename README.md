@@ -32,6 +32,9 @@ All versions: **[Releases](https://github.com/nassertaher/Email-Archive-Tool-1.0
 - Hidden-senders list (`exclude_keywords`) - hides by **sender name and email address**, editable with a checkbox browser
 - Bilingual records with automatic **Arabic rendering** in PDFs (Windows Arial/Tahoma auto-detected)
 - Full **dark/light GUI theme** (remembered)
+- **Archive browser** in the GUI - read, sort, filter and **edit** the register inside the app; `log.csv` and `log.xlsx` are rewritten together on every save
+- **CSV import / export** - merge another CSV into the register (duplicate `Ref No.` rows are skipped) and export exactly the filtered view to CSV or Excel
+- **Dashboard** - totals, a per-agency and per-month breakdown, and the list of outstanding actions at a glance
 - Ready-made `.exe` (no Python needed) and a step-by-step **PDF manual** with screenshots for every screen
 
 ## Quick start
@@ -129,7 +132,18 @@ python gui.py          :: or:  python gui.py --config D:\path\to\config.json
 - **Archive selected** (whole threads, incremental) and **Export Excel**, plus a hidden-senders panel to remove or clear keywords.
 - **Help sidebar** - **Open PDF Manual**, **Use dark mode / Use light mode**, **About**, and **Uninstall (remove all data)**.
 
-## 5. Output
+## 5. Archive browser, dashboard and export
+
+The GUI adds read-and-edit views that work directly on `log.csv` / `log.xlsx`:
+
+- **Archive tab** - shows the whole register (one row per message). Click any heading to sort; filter by free text, transaction-date range, agency, action, or whether the row has attachments.
+- **Selected record** - pick a row to see all its fields plus the full message body (read from the saved `.eml`). Edit **Agency**, **Action**, **Response Date** and **Notes** and press **Save changes** - `log.csv` and `log.xlsx` are written together. **Open PDF**, **Open EML** and **Open attachments folder** are next to it.
+- **Import CSV** - merge any CSV into the register. Columns are matched by name (`Ref`, `Subject`, `Agency`, `Date`, ...); rows whose `Ref No.` already exists are skipped, so imports are safe to repeat.
+- **Export view** - save exactly the rows currently matching the filters to a new `.csv` or `.xlsx`.
+- **Dashboard tab** - totals (records, threads, with attachments, outstanding), a breakdown **by agency** and **by month**, and the list of **outstanding actions** (rows still missing an Action or Response Date).
+- **Emails tab filters** - besides the text box, filter the live list by transaction **date range**, **unread only**, **has attachment** and **archived / not archived**; **Clear all** resets every filter.
+
+## 6. Output
 
 ```
 <folder>\
