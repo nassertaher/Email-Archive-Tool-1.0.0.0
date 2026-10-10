@@ -252,22 +252,38 @@ def files_for_thread(ref, root):
     return _ref_files(ref, root, rows, lambda row: row.get('Ref No.') == ref, True)
 
 
-def ui_rows(summaries, selected_keys, hidden_names, thread_view, filter_text=''):
+def ui_rows(summaries, selected_keys, hidden_names, thread_view, filter_text='',
+            date_from='', date_to='', unread_only=False, has_attachment=False,
+            archived=None):
     """Flattened rows for the Tkinter treeview.
 
     Returns a list of dicts with 'kind' = 'thread' (header) or 'mail'.
     Selection/hide flags are resolved here so the tree code stays thin.
-    filter_text hides non-matching messages (thread headers are shown
-    whenever at least one member matches).
+    Non-matching messages are hidden (thread headers are shown whenever at
+    least one member matches).
     """
     lower = (filter_text or '').strip().lower()
+    d_from = (date_from or '').strip()
+    d_to = (date_to or '').strip()
 
     def matches(item):
-        if not lower:
-            return True
-        sender = (item.get('from_name') or item.get('from_email') or '').lower()
-        subject = (item.get('subject') or '').lower()
-        return lower in sender or lower in subject
+        if lower:
+            sender = (item.get('from_name') or item.get('from_email') or '').lower()
+            subject = (item.get('subject') or '').lower()
+            if lower not in sender and lower not in subject:
+                return False
+        date_value = str(item.get('date') or '').strip()
+        if d_from and date_value and date_value < d_from:
+            return False
+        if d_to and date_value and date_value > d_to:
+            return False
+        if unread_only and item.get('seen', True):
+            return False
+        if has_attachment and not item.get('has_attachment'):
+            return False
+        if archived is not None and bool(item.get('archived')) != archived:
+            return False
+        return True
 
     rows = []
     shown_threads = set()
@@ -571,8 +587,30 @@ class MailToolApp:
         self.var_filter = _var('')
         entry = ttk.Entry(filter_row, textvariable=self.var_filter, width=40)
         entry.pack(side='left', fill='x', expand=True, padx=6)
-        ttk.Button(filter_row, text='Clear', command=lambda: (self.var_filter.set(''), self.refresh_tree())).pack(side='left')
+        ttk.Button(filter_row, text='Clear all', command=self.clear_email_filters).pack(side='left')
         self.var_filter.trace_add('write', lambda *args: self.refresh_tree())
+        extras = ttk.Frame(emails_frame)
+        extras.grid(row=1, column=0, columnspan=2, sticky='we', pady=(0, 3))
+        ttk.Label(extras, text='From:').pack(side='left')
+        self.var_email_from = _var('')
+        ttk.Entry(extras, textvariable=self.var_email_from, width=11).pack(side='left', padx=(2, 8))
+        ttk.Label(extras, text='To:').pack(side='left')
+        self.var_email_to = _var('')
+        ttk.Entry(extras, textvariable=self.var_email_to, width=11).pack(side='left', padx=(2, 8))
+        self.var_unread_only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(extras, text='Unread only',
+                        variable=self.var_unread_only).pack(side='left', padx=(0, 8))
+        self.var_has_attach = tk.BooleanVar(value=False)
+        ttk.Checkbutton(extras, text='Has attachment',
+                        variable=self.var_has_attach).pack(side='left', padx=(0, 8))
+        ttk.Label(extras, text='Archived:').pack(side='left')
+        self.var_archived = _var('Any')
+        self.archived_box = ttk.Combobox(extras, textvariable=self.var_archived, width=12,
+                                         state='readonly', values=('Any', 'Archived', 'Not archived'))
+        self.archived_box.pack(side='left', padx=(2, 0))
+        for var in (self.var_email_from, self.var_email_to, self.var_archived,
+                    self.var_unread_only, self.var_has_attach):
+            var.trace_add('write', lambda *args: self.refresh_tree())
         self.tree = ttk.Treeview(emails_frame, columns=('sel', 'hide', 'date', 'sender', 'subject'),
                                  show='headings', selectmode='none')
         self.tree.heading('sel', text='Keep')
@@ -587,9 +625,9 @@ class MailToolApp:
         self.tree.column('subject', width=460, stretch=True)
         tree_y = ttk.Scrollbar(emails_frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_y.set)
-        self.tree.grid(row=1, column=0, sticky='nsew')
-        tree_y.grid(row=1, column=1, sticky='ns')
-        emails_frame.rowconfigure(1, weight=1)
+        self.tree.grid(row=2, column=0, sticky='nsew')
+        tree_y.grid(row=2, column=1, sticky='ns')
+        emails_frame.rowconfigure(2, weight=1)
         emails_frame.columnconfigure(0, weight=1)
         self.tree.tag_configure('thread', background=THEME['thread_bg'], foreground=THEME['heading'],
                                 font=(self.ui_font, 9, 'bold'))
@@ -1234,11 +1272,24 @@ class MailToolApp:
             self.archive_tree.heading(key, text=text + arrow)
 
     # ----------------------------------------------------------- tree
+    def clear_email_filters(self):
+        self.var_filter.set('')
+        self.var_email_from.set('')
+        self.var_email_to.set('')
+        self.var_unread_only.set(False)
+        self.var_has_attach.set(False)
+        self.var_archived.set('Any')
+
     def refresh_tree(self):
         self.tree.delete(*self.tree.get_children())
         self.rowmap = {}
+        archived = {'Archived': True, 'Not archived': False}.get(self.var_archived.get())
         rows = ui_rows(self.summaries, self.selected_keys, self.hidden_names,
-                       self.config.get('thread_view', True), self.var_filter.get())
+                       self.config.get('thread_view', True), self.var_filter.get(),
+                       date_from=self.var_email_from.get(), date_to=self.var_email_to.get(),
+                       unread_only=bool(self.var_unread_only.get()),
+                       has_attachment=bool(self.var_has_attach.get()),
+                       archived=archived)
         mail_on_even = 0
         for row in rows:
             if row['kind'] == 'thread':
