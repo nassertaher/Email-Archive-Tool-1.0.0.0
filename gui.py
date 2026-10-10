@@ -10,6 +10,7 @@ import argparse
 import csv
 import os
 import queue
+import re
 import shutil
 import sys
 import threading
@@ -1220,6 +1221,14 @@ class MailToolApp:
             rows, text=self.var_arch_search.get(), date_from=self.var_arch_from.get(),
             date_to=self.var_arch_to.get(), agency=self.var_arch_agency.get(),
             action=self.var_arch_action.get(), attachment=attach)
+        if self.arch_sort_key:
+            if self.arch_sort_key == 'sender':
+                shown.sort(key=lambda row: (row.get('Sender Name') or row.get('Sender Email') or '').casefold(),
+                           reverse=self.arch_sort_desc)
+            else:
+                column = ARCHIVE_COLUMNS.get(self.arch_sort_key)
+                shown.sort(key=lambda row: archive.log_row_sort_key(row, column),
+                           reverse=self.arch_sort_desc)
         self.archive_filtered = shown
         for index, row in enumerate(shown):
             self.archive_tree.insert('', 'end', iid='log-%d' % (index + 1), values=(
@@ -1245,15 +1254,34 @@ class MailToolApp:
             return rows[index]
         return None
 
-    def _archive_eml_path(self, ref):
+    def _archive_eml_path(self, ref, row=None):
         if not ref:
             return ''
         eml_dir = os.path.join(self.folder, 'EML')
-        if os.path.isdir(eml_dir):
-            for name in sorted(os.listdir(eml_dir)):
-                if name == ref + '.eml' or name.startswith(ref + '-'):
-                    return os.path.join(eml_dir, name)
-        return ''
+        if not os.path.isdir(eml_dir):
+            return ''
+        candidates = []
+        for name in os.listdir(eml_dir):
+            if name == ref + '.eml':
+                candidates.append((1, 0, name))
+            elif name.startswith(ref + '-'):
+                numbers = [int(part) for part in re.findall(r'\d+', name[len(ref):])]
+                first = numbers[0] if numbers else 1
+                second = numbers[1] if len(numbers) > 1 else 0
+                candidates.append((first, second, name))
+        candidates.sort()
+        paths = [os.path.join(eml_dir, name) for _, _, name in candidates]
+        if not paths:
+            return ''
+        if row is not None:
+            position = 0
+            for candidate in self.log_rows:
+                if str(candidate.get('Ref No.') or '').strip() != ref:
+                    continue
+                if candidate is row:
+                    return paths[position] if position < len(paths) else paths[0]
+                position += 1
+        return paths[0]
 
     def show_archive_detail(self):
         row = self._selected_archive_row()
@@ -1276,7 +1304,7 @@ class MailToolApp:
         notes = str(row.get('Notes') or '')
         self.var_edit_notes.set('' if notes == archive.DASH else notes)
         ref = str(row.get('Ref No.') or '').strip()
-        eml = self._archive_eml_path(ref)
+        eml = self._archive_eml_path(ref, row)
         body = archive.eml_body(eml) if eml else '(no saved .eml for this record)'
         self._set_archive_detail(body)
 
@@ -1340,7 +1368,7 @@ class MailToolApp:
             self.status('Select an archived record first.')
             return
         ref = str(row.get('Ref No.') or '').strip()
-        eml = self._archive_eml_path(ref)
+        eml = self._archive_eml_path(ref, row)
         if eml:
             _open_path(eml)
         else:
@@ -1356,12 +1384,6 @@ class MailToolApp:
         else:
             self.arch_sort_key = key
             self.arch_sort_desc = False
-        if key == 'sender':
-            rows.sort(key=lambda row: (row.get('Sender Name') or row.get('Sender Email') or '').casefold(),
-                      reverse=self.arch_sort_desc)
-        else:
-            rows.sort(key=lambda row: archive.log_row_sort_key(row, column),
-                      reverse=self.arch_sort_desc)
         self.populate_archive()
         self._update_archive_headings()
 
