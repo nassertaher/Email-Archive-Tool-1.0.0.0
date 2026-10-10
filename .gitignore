@@ -1,0 +1,30 @@
+# Personal / runtime data - never commit
+config.json
+token_cache.json
+token_cache.json.bak
+seen_ids.json
+log.csv
+log.xlsx
+
+# Archive output
+PDF/
+EML/
+Attachments/
+
+# Build output
+build/
+dist/
+releases/
+*.zip
+
+# Manual (regenerable; shipped as a GitHub Release asset)
+EmailArchiveTool_Manual.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.spec
+
+# Editors
+.idea/
+.vscode/
