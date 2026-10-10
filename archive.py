@@ -50,6 +50,21 @@ CSV_COLUMNS = [
 FILL_MANUALLY = '(fill manually)'
 DASH = '\u2014'
 NO_ATTACHMENT = '(no attachment)'
+COLUMN_ALIASES = {
+    'Ref No.': ('refno', 'ref', 'reference', 'refnumber', 'reference no', 'reference_number'),
+    'Agency': ('agency', 'entity', 'authority'),
+    'Subject': ('subject', 'topic', 'title'),
+    'Transaction Date': ('transactiondate', 'date', 'transdate', 'transaction date'),
+    'Action': ('action', 'status', 'state'),
+    'Response Date': ('responsedate', 'replydate', 'response date', 'reply date'),
+    'Sender Name': ('sendername', 'sender', 'fromname', 'from', 'from name'),
+    'Sender Email': ('senderemail', 'fromemail', 'email', 'from email', 'mail'),
+    'Recipients': ('recipients', 'to', 'toaddresses', 'to addresses'),
+    'CC': ('cc', 'carboncopy'),
+    'Attachments': ('attachments', 'attachment', 'files'),
+    'Email PDF': ('emailpdf', 'pdf', 'pdfpath', 'pdf path', 'email pdf'),
+    'Notes': ('notes', 'remarks', 'remark', 'comment', 'comments', 'note'),
+}
 ONEDRIVE_JUNK_RE = re.compile(
     r'1drv\.ms|res\.public\.onecdn\.static\.microsoft|res-1\.cdn\.office\.net'
     r'|mediap\.svc\.ms|microsoftpersonalcontent\.com|\.svc\.ms/transform'
@@ -558,6 +573,67 @@ def write_log_rows(root, rows):
         except ArchiveError:
             xlsx_path = ''
     return path, xlsx_path
+
+
+def _norm_column(name):
+    return re.sub(r'[^a-z0-9]', '', str(name or '').lower())
+
+
+def import_column_map(fieldnames):
+    available = {}
+    for name in fieldnames or []:
+        available.setdefault(_norm_column(name), name)
+    mapping = {}
+    for column in CSV_COLUMNS:
+        candidates = (_norm_column(column),) + tuple(
+            _norm_column(alias) for alias in COLUMN_ALIASES.get(column, ()))
+        for candidate in candidates:
+            if candidate in available:
+                mapping[column] = available[candidate]
+                break
+    return mapping
+
+
+def parse_import_csv(path):
+    for encoding in ('utf-8-sig', 'cp1252', 'utf-8'):
+        try:
+            with open(path, newline='', encoding=encoding) as handle:
+                reader = csv.DictReader(handle)
+                mapping = import_column_map(reader.fieldnames)
+                rows = []
+                for raw in reader:
+                    row = {}
+                    for column in CSV_COLUMNS:
+                        source = mapping.get(column)
+                        value = str(raw.get(source) or '').strip() if source else ''
+                        row[column] = value or DASH
+                    rows.append(row)
+                return rows
+        except UnicodeDecodeError:
+            continue
+    raise ArchiveError(f'Cannot decode CSV: {path}')
+
+
+def merge_log_rows(existing, incoming):
+    def key_of(row):
+        ref = str(row.get('Ref No.') or '').strip()
+        return ref.casefold() if ref and ref != DASH else ''
+
+    seen = {key_of(row) for row in existing}
+    seen.discard('')
+    merged = list(existing)
+    added = 0
+    skipped = 0
+    for row in incoming:
+        key = key_of(row)
+        if key and key in seen:
+            skipped += 1
+            continue
+        if key:
+            seen.add(key)
+        merged.append(row)
+        added += 1
+    return merged, added, skipped
 
 
 def check_dependencies():

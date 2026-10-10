@@ -603,6 +603,7 @@ class MailToolApp:
         arch_bar = ttk.Frame(archive_frame)
         arch_bar.grid(row=0, column=0, columnspan=2, sticky='we', pady=(0, 3))
         ttk.Button(arch_bar, text='Refresh', command=self.refresh_archive).pack(side='left')
+        ttk.Button(arch_bar, text='Import CSV', command=self.import_archive_csv).pack(side='left', padx=4)
         self.arch_count = _var('')
         ttk.Label(arch_bar, textvariable=self.arch_count).pack(side='left', padx=8)
         ttk.Label(arch_bar, text='Double-click a row to open its PDF.').pack(side='left', padx=8)
@@ -1047,6 +1048,30 @@ class MailToolApp:
         self.var_arch_agency.set('')
         self.var_arch_action.set('')
         self.var_arch_attach.set('Any')
+
+    def import_archive_csv(self):
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(
+            title='Import CSV into the archive log',
+            filetypes=[('CSV files', '*.csv'), ('All files', '*.*')])
+        if not path:
+            return
+        try:
+            incoming = archive.parse_import_csv(path)
+        except (OSError, archive.ArchiveError) as exc:
+            self.status(f'Import failed: {exc}')
+            return
+        if not incoming:
+            self.status('No rows found in that CSV.')
+            return
+        merged, added, skipped = archive.merge_log_rows(self.log_rows, incoming)
+        try:
+            archive.write_log_rows(self.folder, merged)
+        except OSError as exc:
+            self.status(f'Import failed while saving: {exc}')
+            return
+        self.refresh_archive()
+        self.status(f'Imported {added} row(s), skipped {skipped} duplicate(s).')
 
     def populate_archive(self):
         self.archive_tree.delete(*self.archive_tree.get_children())
