@@ -372,6 +372,44 @@ def filter_log_rows(rows, text='', date_from='', date_to='', agency='',
     return [row for row in rows if keep(row)]
 
 
+def archive_stats(rows):
+    total = len(rows)
+    refs = set()
+    agencies = {}
+    months = {}
+    with_attachments = 0
+    outstanding = []
+    actioned = []
+    for row in rows:
+        ref = str(row.get('Ref No.') or '').strip()
+        if ref and ref != DASH:
+            refs.add(ref)
+        agency = str(row.get('Agency') or '').strip() or DASH
+        agencies[agency] = agencies.get(agency, 0) + 1
+        date_value = str(row.get('Transaction Date') or '').strip()
+        month = date_value[:7] if len(date_value) >= 7 and date_value[4] == '-' else DASH
+        months[month] = months.get(month, 0) + 1
+        names = str(row.get('Attachments') or '').strip()
+        if names and names != DASH:
+            with_attachments += 1
+        action = str(row.get('Action') or '').strip()
+        response = str(row.get('Response Date') or '').strip()
+        placeholders = (DASH, FILL_MANUALLY)
+        if not action or action in placeholders or not response or response in placeholders:
+            outstanding.append(row)
+        else:
+            actioned.append(row)
+    return {
+        'total': total,
+        'threads': len(refs),
+        'agencies': agencies,
+        'months': months,
+        'with_attachments': with_attachments,
+        'outstanding': outstanding,
+        'actioned': len(actioned),
+    }
+
+
 def remove_local_data(delete_archives):
     config = read_config_quiet()
     root = resolve_root(config)
@@ -634,6 +672,59 @@ def merge_log_rows(existing, incoming):
         merged.append(row)
         added += 1
     return merged, added, skipped
+
+
+def _styled_workbook(rows):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Archive Log'
+    sheet.append(CSV_COLUMNS)
+    for row in rows:
+        sheet.append([row.get(column, '') for column in CSV_COLUMNS])
+    header_fill = PatternFill('solid', fgColor='1F4E78')
+    header_font = Font(bold=True, color='FFFFFF')
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    sheet.freeze_panes = 'A2'
+    sheet.auto_filter.ref = sheet.dimensions
+    for column_index in range(1, len(CSV_COLUMNS) + 1):
+        column = CSV_COLUMNS[column_index - 1]
+        longest = len(column)
+        for row in rows:
+            value = str(row.get(column) or '')
+            visual = sum(2 if ord(char) > 0x0600 else 1 for char in value)
+            longest = max(longest, min(visual, 60))
+        sheet.column_dimensions[get_column_letter(column_index)].width = min(max(longest + 2, 10), 62)
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+    return workbook
+
+
+def export_rows_csv(path, rows):
+    with open(path, 'w', newline='', encoding='utf-8-sig') as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS, extrasaction='ignore')
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column, '') for column in CSV_COLUMNS})
+    return path
+
+
+def export_rows_excel(path, rows):
+    try:
+        workbook = _styled_workbook(rows)
+    except ImportError as exc:
+        raise ArchiveError(f'openpyxl is not installed ({exc}) - run: python -m pip install -r requirements.txt')
+    try:
+        workbook.save(path)
+    except OSError as exc:
+        raise ArchiveError(f'Cannot write {path}: {exc}')
+    return path
 
 
 def check_dependencies():

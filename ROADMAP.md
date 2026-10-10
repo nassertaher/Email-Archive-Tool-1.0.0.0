@@ -63,9 +63,12 @@ public repo (see README). Never commit personal files - `config.json`,
 
 ## Phase 3 - Insights
 
-- [ ] 3.1 Dashboard: totals, by Agency, by month, outstanding actions
-- [ ] 3.2 Export the filtered view to CSV / Excel
+- [x] 3.1 Dashboard: totals, by Agency, by month, outstanding actions
+- [x] 3.2 Export the filtered view to CSV / Excel
 
 ## Changelog
 
 - 2026-10-10: Project opened as open source; v1.0.0.0 released publicly.
+- 2026-10-10: Phase 1 archive browser (read/sort/filter/detail), Phase 2 register
+  management (inline edit + save to log.csv/log.xlsx, CSV import/merge, richer
+  Emails filters), Phase 3 insights (dashboard + export filtered view).

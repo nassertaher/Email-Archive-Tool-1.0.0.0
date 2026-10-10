@@ -752,6 +752,53 @@ class MailToolApp:
         ttk.Button(arch_actions, text='Open EML', command=self.open_archive_eml).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Open attachments folder',
                    command=lambda: _open_path(os.path.join(self.folder, 'Attachments'))).pack(side='left', padx=3)
+        ttk.Button(arch_actions, text='Export view',
+                   command=self.export_archive_view).pack(side='left', padx=3)
+
+        dash_frame = ttk.Frame(notes)
+        notes.add(dash_frame, text='Dashboard')
+        dash_bar = ttk.Frame(dash_frame)
+        dash_bar.grid(row=0, column=0, columnspan=2, sticky='we', pady=(0, 3))
+        ttk.Button(dash_bar, text='Refresh', command=self.refresh_dashboard).pack(side='left')
+        self.dash_summary = _var('')
+        ttk.Label(dash_bar, textvariable=self.dash_summary).pack(side='left', padx=8)
+        ttk.Label(dash_frame, text='By Agency').grid(row=1, column=0, sticky='w', pady=(4, 0))
+        ttk.Label(dash_frame, text='By Month').grid(row=1, column=1, sticky='w', pady=(4, 0))
+        self.dash_agency = ttk.Treeview(dash_frame, columns=('agency', 'count'),
+                                        show='headings', height=6)
+        self.dash_agency.heading('agency', text='Agency')
+        self.dash_agency.heading('count', text='Count')
+        self.dash_agency.column('agency', width=220, stretch=True)
+        self.dash_agency.column('count', width=70, anchor='e', stretch=False)
+        self.dash_agency.grid(row=2, column=0, sticky='nsew', padx=(0, 6))
+        self.dash_month = ttk.Treeview(dash_frame, columns=('month', 'count'),
+                                       show='headings', height=6)
+        self.dash_month.heading('month', text='Month')
+        self.dash_month.heading('count', text='Count')
+        self.dash_month.column('month', width=160, stretch=True)
+        self.dash_month.column('count', width=70, anchor='e', stretch=False)
+        self.dash_month.grid(row=2, column=1, sticky='nsew')
+        ttk.Label(dash_frame, text='Outstanding actions (no Action / Response Date yet)').grid(
+            row=3, column=0, columnspan=2, sticky='w', pady=(6, 0))
+        out_frame = ttk.Frame(dash_frame)
+        out_frame.grid(row=4, column=0, columnspan=2, sticky='nsew', pady=(2, 0))
+        out_frame.rowconfigure(0, weight=1)
+        out_frame.columnconfigure(0, weight=1)
+        self.dash_outstanding = ttk.Treeview(
+            out_frame, columns=('ref', 'agency', 'subject', 'action', 'response'), show='headings')
+        for key, text, width, stretch in (
+                ('ref', 'Ref No.', 110, False), ('agency', 'Agency', 160, False),
+                ('subject', 'Subject', 380, True), ('action', 'Action', 110, False),
+                ('response', 'Response', 100, False)):
+            self.dash_outstanding.heading(key, text=text)
+            self.dash_outstanding.column(key, width=width, anchor='w', stretch=stretch)
+        dash_y = ttk.Scrollbar(out_frame, orient='vertical', command=self.dash_outstanding.yview)
+        self.dash_outstanding.configure(yscrollcommand=dash_y.set)
+        self.dash_outstanding.grid(row=0, column=0, sticky='nsew')
+        dash_y.grid(row=0, column=1, sticky='ns')
+        dash_frame.rowconfigure(4, weight=1)
+        dash_frame.columnconfigure(0, weight=1)
+        dash_frame.columnconfigure(1, weight=1)
 
         files_frame = ttk.Frame(notes)
         notes.add(files_frame, text='Files')
@@ -1078,6 +1125,47 @@ class MailToolApp:
         if self.var_arch_action.get() not in self.action_box['values']:
             self.var_arch_action.set('')
         self.populate_archive()
+        self.refresh_dashboard()
+
+    def refresh_dashboard(self):
+        stats = archive.archive_stats(getattr(self, 'log_rows', []))
+        self.dash_summary.set(
+            f"{stats['total']} record(s) - {stats['threads']} thread(s) - "
+            f"{stats['with_attachments']} with attachments - "
+            f"{len(stats['outstanding'])} outstanding")
+        self.dash_agency.delete(*self.dash_agency.get_children())
+        for agency, count in sorted(stats['agencies'].items(), key=lambda kv: (-kv[1], kv[0])):
+            self.dash_agency.insert('', 'end', values=(agency, count))
+        self.dash_month.delete(*self.dash_month.get_children())
+        for month, count in sorted(stats['months'].items()):
+            self.dash_month.insert('', 'end', values=(month, count))
+        self.dash_outstanding.delete(*self.dash_outstanding.get_children())
+        for row in stats['outstanding']:
+            self.dash_outstanding.insert('', 'end', values=(
+                row.get('Ref No.', ''), row.get('Agency', ''), row.get('Subject', ''),
+                row.get('Action', ''), row.get('Response Date', '')))
+
+    def export_archive_view(self):
+        from tkinter import filedialog
+        rows = getattr(self, 'archive_filtered', [])
+        if not rows:
+            self.status('Nothing to export - no rows match the current filters.')
+            return
+        path = filedialog.asksaveasfilename(
+            title='Export the filtered archive view',
+            defaultextension='.xlsx',
+            filetypes=[('Excel workbook', '*.xlsx'), ('CSV file', '*.csv')])
+        if not path:
+            return
+        try:
+            if path.lower().endswith('.csv'):
+                archive.export_rows_csv(path, rows)
+            else:
+                archive.export_rows_excel(path, rows)
+        except (OSError, archive.ArchiveError) as exc:
+            self.status(f'Export failed: {exc}')
+            return
+        self.status(f'Exported {len(rows)} row(s) to {path}')
 
     def clear_archive_filters(self):
         self.var_arch_search.set('')
