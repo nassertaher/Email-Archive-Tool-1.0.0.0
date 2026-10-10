@@ -653,9 +653,23 @@ class MailToolApp:
         self.archive_tree.configure(yscrollcommand=arch_y.set)
         self.archive_tree.grid(row=2, column=0, sticky='nsew')
         arch_y.grid(row=2, column=1, sticky='ns')
-        archive_frame.rowconfigure(2, weight=1)
+        archive_frame.rowconfigure(2, weight=3)
         archive_frame.columnconfigure(0, weight=1)
         self.archive_tree.bind('<Double-1>', lambda event: self.open_archive_pdf())
+        self.archive_tree.bind('<<TreeviewSelect>>', lambda event: self.show_archive_detail())
+        ttk.Label(archive_frame, text='Selected record').grid(row=3, column=0, sticky='w', pady=(6, 0))
+        self.arch_detail = tk_text(archive_frame)
+        self.arch_detail.grid(row=4, column=0, columnspan=2, sticky='nsew')
+        self.arch_detail.configure(bg=THEME['field'], fg=THEME['text'], insertbackground=THEME['text'],
+                                   relief='flat', padx=8, pady=6, font=(self.ui_font, 9), height=8)
+        self.arch_detail.configure(state='disabled')
+        archive_frame.rowconfigure(4, weight=2)
+        arch_actions = ttk.Frame(archive_frame)
+        arch_actions.grid(row=5, column=0, columnspan=2, sticky='we', pady=(3, 0))
+        ttk.Button(arch_actions, text='Open PDF', command=self.open_archive_pdf).pack(side='left', padx=3)
+        ttk.Button(arch_actions, text='Open EML', command=self.open_archive_eml).pack(side='left', padx=3)
+        ttk.Button(arch_actions, text='Open attachments folder',
+                   command=lambda: _open_path(os.path.join(self.folder, 'Attachments'))).pack(side='left', padx=3)
 
         files_frame = ttk.Frame(notes)
         notes.add(files_frame, text='Files')
@@ -1009,18 +1023,53 @@ class MailToolApp:
         else:
             self.arch_count.set(f'showing {len(shown)} of {len(rows)}')
 
-    def open_archive_pdf(self):
+    def _selected_archive_row(self):
         selection = self.archive_tree.selection()
         if not selection:
-            return
+            return None
         prefix = ''.join(ch for ch in selection[0] if ch.isdigit())
         if not prefix:
-            return
+            return None
         rows = getattr(self, 'archive_filtered', [])
         index = int(prefix) - 1
-        if not 0 <= index < len(rows):
+        if 0 <= index < len(rows):
+            return rows[index]
+        return None
+
+    def _archive_eml_path(self, ref):
+        if not ref:
+            return ''
+        eml_dir = os.path.join(self.folder, 'EML')
+        if os.path.isdir(eml_dir):
+            for name in sorted(os.listdir(eml_dir)):
+                if name == ref + '.eml' or name.startswith(ref + '-'):
+                    return os.path.join(eml_dir, name)
+        return ''
+
+    def show_archive_detail(self):
+        row = self._selected_archive_row()
+        if row is None:
+            self._set_archive_detail('')
             return
-        ref = str(rows[index].get('Ref No.') or '').strip()
+        lines = [f'{label}: {row.get(label, "")}' for label in (
+            'Ref No.', 'Agency', 'Subject', 'Transaction Date', 'Action', 'Response Date',
+            'Sender Name', 'Sender Email', 'Recipients', 'CC', 'Attachments', 'Notes')]
+        ref = str(row.get('Ref No.') or '').strip()
+        eml = self._archive_eml_path(ref)
+        body = archive.eml_body(eml) if eml else '(no saved .eml for this record)'
+        self._set_archive_detail('\n'.join(lines) + '\n\n--- Message body ---\n\n' + body)
+
+    def _set_archive_detail(self, text):
+        self.arch_detail.configure(state='normal')
+        self.arch_detail.delete('1.0', 'end')
+        self.arch_detail.insert('1.0', text)
+        self.arch_detail.configure(state='disabled')
+
+    def open_archive_pdf(self):
+        row = self._selected_archive_row()
+        if row is None:
+            return
+        ref = str(row.get('Ref No.') or '').strip()
         if not ref:
             self.status('This record has no Ref No.')
             return
@@ -1029,6 +1078,18 @@ class MailToolApp:
             _open_path(pdf)
         else:
             self.status(f'PDF not found: {pdf}')
+
+    def open_archive_eml(self):
+        row = self._selected_archive_row()
+        if row is None:
+            self.status('Select an archived record first.')
+            return
+        ref = str(row.get('Ref No.') or '').strip()
+        eml = self._archive_eml_path(ref)
+        if eml:
+            _open_path(eml)
+        else:
+            self.status(f'No .eml saved for {ref or "this record"}.')
 
     def sort_archive(self, key):
         column = ARCHIVE_COLUMNS.get(key)
