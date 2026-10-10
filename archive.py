@@ -151,16 +151,23 @@ def setup_console():
             pass
 
 
+def _print(message):
+    try:
+        print(message)
+    except Exception:
+        pass
+
+
 def say(message=''):
-    print(message)
+    _print(message)
 
 
 def warn(message):
-    print(f'[warning] {message}')
+    _print(f'[warning] {message}')
 
 
 def fail(message):
-    print(f'[error] {message}')
+    _print(f'[error] {message}')
 
 
 def ask(prompt):
@@ -815,7 +822,11 @@ def get_access_token(config):
                     'enabled on its Authentication page (README, section "Sign in with Microsoft (OAuth2)").'
                 )
             say(flow.get('message') or f'Open {flow.get("verification_uri")} and enter code {flow.get("user_code")}')
-            sys.stdout.flush()
+            try:
+                if sys.stdout is not None:
+                    sys.stdout.flush()
+            except Exception:
+                pass
             try:
                 result = application.acquire_token_by_device_flow(flow)
             except KeyboardInterrupt:
