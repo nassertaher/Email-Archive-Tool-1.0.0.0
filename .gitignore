@@ -16,6 +16,7 @@ build/
 dist/
 releases/
 *.zip
+*.exe
 
 # Manual (regenerable; shipped as a GitHub Release asset)
 EmailArchiveTool_Manual.pdf
