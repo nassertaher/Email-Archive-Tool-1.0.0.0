@@ -327,6 +327,36 @@ def log_row_sort_key(row, column):
     return (1, value.casefold(), value.casefold())
 
 
+def filter_log_rows(rows, text='', date_from='', date_to='', agency='',
+                    action='', attachment=None):
+    text = str(text or '').strip().casefold()
+    date_from = str(date_from or '').strip()
+    date_to = str(date_to or '').strip()
+    agency = str(agency or '').strip()
+    action = str(action or '').strip()
+
+    def keep(row):
+        if text and text not in ' '.join(str(value or '') for value in row.values()).casefold():
+            return False
+        date_value = str(row.get('Transaction Date') or '').strip()
+        if date_from and date_value and date_value < date_from:
+            return False
+        if date_to and date_value and date_value > date_to:
+            return False
+        if agency and str(row.get('Agency') or '').strip() != agency:
+            return False
+        if action and str(row.get('Action') or '').strip() != action:
+            return False
+        if attachment is not None:
+            names = str(row.get('Attachments') or '').strip()
+            has_attachment = bool(names) and names != DASH
+            if has_attachment != attachment:
+                return False
+        return True
+
+    return [row for row in rows if keep(row)]
+
+
 def remove_local_data(delete_archives):
     config = read_config_quiet()
     root = resolve_root(config)

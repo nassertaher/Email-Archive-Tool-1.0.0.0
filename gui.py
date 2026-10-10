@@ -493,6 +493,7 @@ class MailToolApp:
         self.file_entries = []
         self.rowmap = {}
         self.log_rows = []
+        self.archive_filtered = []
         self.arch_sort_key = ''
         self.arch_sort_desc = False
         self.worker = None
@@ -605,6 +606,36 @@ class MailToolApp:
         self.arch_count = _var('')
         ttk.Label(arch_bar, textvariable=self.arch_count).pack(side='left', padx=8)
         ttk.Label(arch_bar, text='Double-click a row to open its PDF.').pack(side='left', padx=8)
+        arch_filters = ttk.Frame(archive_frame)
+        arch_filters.grid(row=1, column=0, columnspan=2, sticky='we', pady=(0, 3))
+        ttk.Label(arch_filters, text='Search:').pack(side='left')
+        self.var_arch_search = _var('')
+        ttk.Entry(arch_filters, textvariable=self.var_arch_search, width=20).pack(side='left', padx=(2, 8))
+        ttk.Label(arch_filters, text='From:').pack(side='left')
+        self.var_arch_from = _var('')
+        ttk.Entry(arch_filters, textvariable=self.var_arch_from, width=11).pack(side='left', padx=(2, 8))
+        ttk.Label(arch_filters, text='To:').pack(side='left')
+        self.var_arch_to = _var('')
+        ttk.Entry(arch_filters, textvariable=self.var_arch_to, width=11).pack(side='left', padx=(2, 8))
+        ttk.Label(arch_filters, text='Agency:').pack(side='left')
+        self.var_arch_agency = _var('')
+        self.agency_box = ttk.Combobox(arch_filters, textvariable=self.var_arch_agency,
+                                       width=16, state='readonly', values=('',))
+        self.agency_box.pack(side='left', padx=(2, 8))
+        ttk.Label(arch_filters, text='Action:').pack(side='left')
+        self.var_arch_action = _var('')
+        self.action_box = ttk.Combobox(arch_filters, textvariable=self.var_arch_action,
+                                       width=13, state='readonly', values=('',))
+        self.action_box.pack(side='left', padx=(2, 8))
+        ttk.Label(arch_filters, text='Attachments:').pack(side='left')
+        self.var_arch_attach = _var('Any')
+        self.attach_box = ttk.Combobox(arch_filters, textvariable=self.var_arch_attach,
+                                       width=6, state='readonly', values=('Any', 'Yes', 'No'))
+        self.attach_box.pack(side='left', padx=(2, 8))
+        ttk.Button(arch_filters, text='Clear filters', command=self.clear_archive_filters).pack(side='left')
+        for var in (self.var_arch_search, self.var_arch_from, self.var_arch_to,
+                    self.var_arch_agency, self.var_arch_action, self.var_arch_attach):
+            var.trace_add('write', lambda *args: self.populate_archive())
         self.archive_tree = ttk.Treeview(
             archive_frame,
             columns=('ref', 'date', 'agency', 'sender', 'subject',
@@ -620,9 +651,9 @@ class MailToolApp:
             self.archive_tree.column(key, width=width, anchor='w', stretch=stretch)
         arch_y = ttk.Scrollbar(archive_frame, orient='vertical', command=self.archive_tree.yview)
         self.archive_tree.configure(yscrollcommand=arch_y.set)
-        self.archive_tree.grid(row=1, column=0, sticky='nsew')
-        arch_y.grid(row=1, column=1, sticky='ns')
-        archive_frame.rowconfigure(1, weight=1)
+        self.archive_tree.grid(row=2, column=0, sticky='nsew')
+        arch_y.grid(row=2, column=1, sticky='ns')
+        archive_frame.rowconfigure(2, weight=1)
         archive_frame.columnconfigure(0, weight=1)
         self.archive_tree.bind('<Double-1>', lambda event: self.open_archive_pdf())
 
@@ -938,18 +969,45 @@ class MailToolApp:
     # ---------------------------------------------------------- archive tab
     def refresh_archive(self):
         self.log_rows = archive.read_log_rows(self.folder)
+        agencies = sorted({str(row.get('Agency') or '').strip() for row in self.log_rows
+                           if str(row.get('Agency') or '').strip()})
+        actions = sorted({str(row.get('Action') or '').strip() for row in self.log_rows
+                          if str(row.get('Action') or '').strip()})
+        self.agency_box['values'] = ('',) + tuple(agencies)
+        self.action_box['values'] = ('',) + tuple(actions)
+        if self.var_arch_agency.get() not in self.agency_box['values']:
+            self.var_arch_agency.set('')
+        if self.var_arch_action.get() not in self.action_box['values']:
+            self.var_arch_action.set('')
         self.populate_archive()
+
+    def clear_archive_filters(self):
+        self.var_arch_search.set('')
+        self.var_arch_from.set('')
+        self.var_arch_to.set('')
+        self.var_arch_agency.set('')
+        self.var_arch_action.set('')
+        self.var_arch_attach.set('Any')
 
     def populate_archive(self):
         self.archive_tree.delete(*self.archive_tree.get_children())
         rows = getattr(self, 'log_rows', [])
-        for index, row in enumerate(rows):
+        attach = {'Yes': True, 'No': False}.get(self.var_arch_attach.get())
+        shown = archive.filter_log_rows(
+            rows, text=self.var_arch_search.get(), date_from=self.var_arch_from.get(),
+            date_to=self.var_arch_to.get(), agency=self.var_arch_agency.get(),
+            action=self.var_arch_action.get(), attachment=attach)
+        self.archive_filtered = shown
+        for index, row in enumerate(shown):
             self.archive_tree.insert('', 'end', iid='log-%d' % index, values=(
                 row.get('Ref No.', ''), row.get('Transaction Date', ''),
                 row.get('Agency', ''), row.get('Sender Name', '') or row.get('Sender Email', ''),
                 row.get('Subject', ''), row.get('Action', ''),
                 row.get('Response Date', ''), row.get('Attachments', '')))
-        self.arch_count.set(f'{len(rows)} archived record(s).')
+        if len(shown) == len(rows):
+            self.arch_count.set(f'{len(rows)} archived record(s).')
+        else:
+            self.arch_count.set(f'showing {len(shown)} of {len(rows)}')
 
     def open_archive_pdf(self):
         selection = self.archive_tree.selection()
@@ -958,7 +1016,7 @@ class MailToolApp:
         prefix = ''.join(ch for ch in selection[0] if ch.isdigit())
         if not prefix:
             return
-        rows = getattr(self, 'log_rows', [])
+        rows = getattr(self, 'archive_filtered', [])
         index = int(prefix) - 1
         if not 0 <= index < len(rows):
             return
