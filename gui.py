@@ -28,6 +28,16 @@ GMAIL_IMAP_URL = 'https://support.google.com/mail/answer/7126229'
 YAHOO_APP_PASSWORD_URL = 'https://help.yahoo.com/kb/generate-third-party-passwords-sln15241.html'
 APP_NAME = 'Email Archive Tool'
 MANUAL_FILE = 'EmailArchiveTool_Manual.pdf'
+ARCHIVE_COLUMNS = {
+    'ref': 'Ref No.', 'date': 'Transaction Date', 'agency': 'Agency',
+    'sender': 'Sender Name', 'subject': 'Subject', 'action': 'Action',
+    'response': 'Response Date', 'attachments': 'Attachments',
+}
+ARCHIVE_HEADINGS = {
+    'ref': 'Ref No.', 'date': 'Date', 'agency': 'Agency', 'sender': 'Sender',
+    'subject': 'Subject', 'action': 'Action', 'response': 'Response',
+    'attachments': 'Attachments',
+}
 LIGHT_THEME = {
     'bg': '#eef1f6', 'panel': '#f7f9fc', 'field': '#ffffff', 'border': '#d7dde6',
     'text': '#1f2933', 'muted': '#5b6672', 'accent': '#0f6cbd', 'accent_dark': '#0a5493',
@@ -483,6 +493,8 @@ class MailToolApp:
         self.file_entries = []
         self.rowmap = {}
         self.log_rows = []
+        self.arch_sort_key = ''
+        self.arch_sort_desc = False
         self.worker = None
         self.build_widgets()
         LOG_TO_UI.append(self.log)
@@ -603,7 +615,8 @@ class MailToolApp:
                 ('agency', 'Agency', 150, False), ('sender', 'Sender', 180, False),
                 ('subject', 'Subject', 320, True), ('action', 'Action', 120, False),
                 ('response', 'Response', 100, False), ('attachments', 'Attachments', 160, False)):
-            self.archive_tree.heading(key, text=text)
+            self.archive_tree.heading(
+                key, text=text, command=lambda k=key: self.sort_archive(k))
             self.archive_tree.column(key, width=width, anchor='w', stretch=stretch)
         arch_y = ttk.Scrollbar(archive_frame, orient='vertical', command=self.archive_tree.yview)
         self.archive_tree.configure(yscrollcommand=arch_y.set)
@@ -958,6 +971,32 @@ class MailToolApp:
             _open_path(pdf)
         else:
             self.status(f'PDF not found: {pdf}')
+
+    def sort_archive(self, key):
+        column = ARCHIVE_COLUMNS.get(key)
+        rows = getattr(self, 'log_rows', [])
+        if not column or not rows:
+            return
+        if self.arch_sort_key == key:
+            self.arch_sort_desc = not self.arch_sort_desc
+        else:
+            self.arch_sort_key = key
+            self.arch_sort_desc = False
+        if key == 'sender':
+            rows.sort(key=lambda row: (row.get('Sender Name') or row.get('Sender Email') or '').casefold(),
+                      reverse=self.arch_sort_desc)
+        else:
+            rows.sort(key=lambda row: archive.log_row_sort_key(row, column),
+                      reverse=self.arch_sort_desc)
+        self.populate_archive()
+        self._update_archive_headings()
+
+    def _update_archive_headings(self):
+        for key, text in ARCHIVE_HEADINGS.items():
+            arrow = ''
+            if key == self.arch_sort_key:
+                arrow = ' \u25bc' if self.arch_sort_desc else ' \u25b2'
+            self.archive_tree.heading(key, text=text + arrow)
 
     # ----------------------------------------------------------- tree
     def refresh_tree(self):
