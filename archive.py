@@ -542,6 +542,24 @@ def export_excel(root):
     return xlsx_path
 
 
+def write_log_rows(root, rows):
+    path = os.path.join(root, 'log.csv')
+    tmp_path = path + '.tmp'
+    with open(tmp_path, 'w', newline='', encoding='utf-8-sig') as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS, extrasaction='ignore')
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column, '') for column in CSV_COLUMNS})
+    os.replace(tmp_path, path)
+    xlsx_path = ''
+    if rows:
+        try:
+            xlsx_path = export_excel(root)
+        except ArchiveError:
+            xlsx_path = ''
+    return path, xlsx_path
+
+
 def check_dependencies():
     required = [('bs4', 'beautifulsoup4'), ('reportlab', 'reportlab'), ('openpyxl', 'openpyxl')]
     missing = []

@@ -57,7 +57,7 @@ public repo (see README). Never commit personal files - `config.json`,
 
 ## Phase 2 - Register management
 
-- [ ] 2.1 Edit Action / Response Date / Notes / Agency inline and save to log.csv + log.xlsx
+- [x] 2.1 Edit Action / Response Date / Notes / Agency inline and save to log.csv + log.xlsx
 - [ ] 2.2 Import any CSV into the Archive tab; merge rows into log.csv
 - [ ] 2.3 Richer filters on the live Emails tab (date range, unread, has attachment, archived)
 

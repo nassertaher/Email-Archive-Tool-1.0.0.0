@@ -658,14 +658,57 @@ class MailToolApp:
         self.archive_tree.bind('<Double-1>', lambda event: self.open_archive_pdf())
         self.archive_tree.bind('<<TreeviewSelect>>', lambda event: self.show_archive_detail())
         ttk.Label(archive_frame, text='Selected record').grid(row=3, column=0, sticky='w', pady=(6, 0))
-        self.arch_detail = tk_text(archive_frame)
-        self.arch_detail.grid(row=4, column=0, columnspan=2, sticky='nsew')
+        detail = ttk.Frame(archive_frame)
+        detail.grid(row=4, column=0, columnspan=2, sticky='nsew')
+        detail.columnconfigure(1, weight=1)
+        detail.rowconfigure(0, weight=1)
+        form = ttk.Frame(detail)
+        form.grid(row=0, column=0, sticky='nsw', padx=(0, 8))
+        self.arch_detail = tk_text(detail)
+        self.arch_detail.grid(row=0, column=1, sticky='nsew')
         self.arch_detail.configure(bg=THEME['field'], fg=THEME['text'], insertbackground=THEME['text'],
-                                   relief='flat', padx=8, pady=6, font=(self.ui_font, 9), height=8)
+                                   relief='flat', padx=8, pady=6, font=(self.ui_font, 9), height=9)
         self.arch_detail.configure(state='disabled')
         archive_frame.rowconfigure(4, weight=2)
+        self.var_edit_ref = _var('')
+        self.var_edit_subject = _var('')
+        self.var_edit_sender = _var('')
+        self.var_edit_trans = _var('')
+        self.var_edit_attach = _var('')
+        self.var_edit_agency = _var('')
+        self.var_edit_action = _var('')
+        self.var_edit_response = _var('')
+        self.var_edit_notes = _var('')
+        row = 0
+        ttk.Label(form, text='Ref No.').grid(row=row, column=0, sticky='w', pady=1)
+        ttk.Label(form, textvariable=self.var_edit_ref).grid(row=row, column=1, sticky='w', pady=1); row += 1
+        ttk.Label(form, text='Subject').grid(row=row, column=0, sticky='nw', pady=1)
+        ttk.Label(form, textvariable=self.var_edit_subject, wraplength=250,
+                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
+        ttk.Label(form, text='Agency').grid(row=row, column=0, sticky='w', pady=1)
+        self.arch_agency_edit = ttk.Combobox(form, textvariable=self.var_edit_agency, width=30, values=('',))
+        self.arch_agency_edit.grid(row=row, column=1, sticky='we', pady=1); row += 1
+        ttk.Label(form, text='Action').grid(row=row, column=0, sticky='w', pady=1)
+        self.arch_action_edit = ttk.Combobox(form, textvariable=self.var_edit_action, width=30, values=('',))
+        self.arch_action_edit.grid(row=row, column=1, sticky='we', pady=1); row += 1
+        ttk.Label(form, text='Response Date').grid(row=row, column=0, sticky='w', pady=1)
+        ttk.Entry(form, textvariable=self.var_edit_response,
+                  width=32).grid(row=row, column=1, sticky='we', pady=1); row += 1
+        ttk.Label(form, text='Notes').grid(row=row, column=0, sticky='w', pady=1)
+        ttk.Entry(form, textvariable=self.var_edit_notes,
+                  width=32).grid(row=row, column=1, sticky='we', pady=1); row += 1
+        ttk.Label(form, text='Transaction Date').grid(row=row, column=0, sticky='w', pady=1)
+        ttk.Label(form, textvariable=self.var_edit_trans).grid(row=row, column=1, sticky='w', pady=1); row += 1
+        ttk.Label(form, text='Sender').grid(row=row, column=0, sticky='nw', pady=1)
+        ttk.Label(form, textvariable=self.var_edit_sender, wraplength=250,
+                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
+        ttk.Label(form, text='Attachments').grid(row=row, column=0, sticky='nw', pady=1)
+        ttk.Label(form, textvariable=self.var_edit_attach, wraplength=250,
+                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
         arch_actions = ttk.Frame(archive_frame)
         arch_actions.grid(row=5, column=0, columnspan=2, sticky='we', pady=(3, 0))
+        ttk.Button(arch_actions, text='Save changes', command=self.save_archive_detail).pack(side='left', padx=3)
+        ttk.Button(arch_actions, text='Revert', command=self.show_archive_detail).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Open PDF', command=self.open_archive_pdf).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Open EML', command=self.open_archive_eml).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Open attachments folder',
@@ -989,6 +1032,8 @@ class MailToolApp:
                           if str(row.get('Action') or '').strip() not in ('', archive.DASH)})
         self.agency_box['values'] = ('',) + tuple(agencies)
         self.action_box['values'] = ('',) + tuple(actions)
+        self.arch_agency_edit['values'] = ('',) + tuple(agencies)
+        self.arch_action_edit['values'] = ('',) + tuple(actions)
         if self.var_arch_agency.get() not in self.agency_box['values']:
             self.var_arch_agency.set('')
         if self.var_arch_action.get() not in self.action_box['values']:
@@ -1013,7 +1058,7 @@ class MailToolApp:
             action=self.var_arch_action.get(), attachment=attach)
         self.archive_filtered = shown
         for index, row in enumerate(shown):
-            self.archive_tree.insert('', 'end', iid='log-%d' % index, values=(
+            self.archive_tree.insert('', 'end', iid='log-%d' % (index + 1), values=(
                 row.get('Ref No.', ''), row.get('Transaction Date', ''),
                 row.get('Agency', ''), row.get('Sender Name', '') or row.get('Sender Email', ''),
                 row.get('Subject', ''), row.get('Action', ''),
@@ -1049,15 +1094,61 @@ class MailToolApp:
     def show_archive_detail(self):
         row = self._selected_archive_row()
         if row is None:
+            self._clear_archive_form()
             self._set_archive_detail('')
             return
-        lines = [f'{label}: {row.get(label, "")}' for label in (
-            'Ref No.', 'Agency', 'Subject', 'Transaction Date', 'Action', 'Response Date',
-            'Sender Name', 'Sender Email', 'Recipients', 'CC', 'Attachments', 'Notes')]
+        self.var_edit_ref.set(str(row.get('Ref No.') or ''))
+        self.var_edit_subject.set(str(row.get('Subject') or ''))
+        self.var_edit_sender.set(str(row.get('Sender Name') or '') or str(row.get('Sender Email') or ''))
+        self.var_edit_trans.set(str(row.get('Transaction Date') or ''))
+        self.var_edit_attach.set(str(row.get('Attachments') or ''))
+        agency = str(row.get('Agency') or '')
+        self.var_edit_agency.set('' if agency == archive.DASH else agency)
+        placeholders = (archive.DASH, archive.FILL_MANUALLY)
+        action = str(row.get('Action') or '')
+        self.var_edit_action.set('' if action in placeholders else action)
+        response = str(row.get('Response Date') or '')
+        self.var_edit_response.set('' if response in placeholders else response)
+        notes = str(row.get('Notes') or '')
+        self.var_edit_notes.set('' if notes == archive.DASH else notes)
         ref = str(row.get('Ref No.') or '').strip()
         eml = self._archive_eml_path(ref)
         body = archive.eml_body(eml) if eml else '(no saved .eml for this record)'
-        self._set_archive_detail('\n'.join(lines) + '\n\n--- Message body ---\n\n' + body)
+        self._set_archive_detail(body)
+
+    def _clear_archive_form(self):
+        for var in (self.var_edit_ref, self.var_edit_subject, self.var_edit_sender,
+                    self.var_edit_trans, self.var_edit_attach, self.var_edit_agency,
+                    self.var_edit_action, self.var_edit_response, self.var_edit_notes):
+            var.set('')
+
+    def save_archive_detail(self):
+        row = self._selected_archive_row()
+        if row is None:
+            self.status('Select an archived record first.')
+            return
+        row['Agency'] = self.var_edit_agency.get().strip() or archive.DASH
+        row['Action'] = self.var_edit_action.get().strip() or archive.DASH
+        row['Response Date'] = self.var_edit_response.get().strip() or archive.DASH
+        row['Notes'] = self.var_edit_notes.get().strip() or archive.DASH
+        ref = str(row.get('Ref No.') or '').strip()
+        try:
+            archive.write_log_rows(self.folder, self.log_rows)
+        except OSError as exc:
+            self.status(f'Save failed: {exc}')
+            return
+        self.refresh_archive()
+        self._reselect_archive(ref)
+        self.status(f'{ref}: saved to log.csv and log.xlsx')
+
+    def _reselect_archive(self, ref):
+        for index, row in enumerate(getattr(self, 'archive_filtered', [])):
+            if str(row.get('Ref No.') or '').strip() == ref:
+                iid = 'log-%d' % (index + 1)
+                if self.archive_tree.exists(iid):
+                    self.archive_tree.selection_set(iid)
+                    self.archive_tree.see(iid)
+                return
 
     def _set_archive_detail(self, text):
         self.arch_detail.configure(state='normal')
