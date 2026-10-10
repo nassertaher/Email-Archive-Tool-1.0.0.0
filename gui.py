@@ -113,7 +113,7 @@ def apply_theme(win, dark=False):
     for kind in ('TEntry', 'TSpinbox', 'TCombobox'):
         style.configure(kind, fieldbackground=c['field'], background=c['field'],
                         foreground=c['text'], insertcolor=c['text'], bordercolor=c['border'],
-                        lightcolor=c['border'], darkcolor=c['border'])
+                        lightcolor=c['border'], darkcolor=c['border'], padding=(8, 6))
     style.map('TCombobox',
               fieldbackground=[('readonly', c['field'])],
               foreground=[('readonly', c['text'])],
@@ -521,57 +521,77 @@ class MailToolApp:
         self.root_window.after(self.TICK, self.poll)
 
     # ------------------------------------------------------------------ UI
+    def _apply_initial_geometry(self):
+        win = self.root_window
+        win.update_idletasks()
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        width = min(1280, max(900, sw - 80))
+        height = min(840, max(640, sh - 110))
+        width = min(width, sw)
+        height = min(height, sh)
+        x = max(0, (sw - width) // 2)
+        y = max(0, (sh - height) // 3)
+        win.geometry(f'{width}x{height}+{x}+{y}')
+        win.minsize(min(900, sw), min(600, sh))
+
     def build_widgets(self):
         import tkinter as tk
         from tkinter import ttk
         self.root_window.title(APP_NAME)
-        self.root_window.geometry('1180x740')
+        self._apply_initial_geometry()
 
-        settings = ttk.LabelFrame(self.root_window, text=' Email and connection ', padding=6)
-        settings.pack(fill='x', padx=8, pady=4)
-        ttk.Label(settings, text='Email:').grid(row=0, column=0, sticky='e')
-        self.var_email = _var(self.config.get('email') or '')
-        ttk.Entry(settings, textvariable=self.var_email, width=34).grid(row=0, column=1, sticky='we', padx=4)
-        ttk.Button(settings, text='Settings...',
-                   command=self.open_settings).grid(row=0, column=2, padx=4)
-        ttk.Label(settings, text='Azure sign-in, IMAP server and limits are in Settings.').grid(
-            row=0, column=3, sticky='w', padx=6)
+        settings = ttk.LabelFrame(self.root_window, text=' Email and connection ', padding=8)
+        settings.pack(fill='x', padx=10, pady=(8, 4))
         settings.columnconfigure(1, weight=1)
+        ttk.Label(settings, text='Email:').grid(row=0, column=0, sticky='e', padx=(2, 6))
+        self.var_email = _var(self.config.get('email') or '')
+        ttk.Entry(settings, textvariable=self.var_email).grid(row=0, column=1, sticky='we')
+        ttk.Button(settings, text='Settings...', width=14,
+                   command=self.open_settings).grid(row=0, column=2, padx=(10, 2))
+        ttk.Label(settings, text='Azure sign-in, IMAP server and limits are in Settings.',
+                  foreground=THEME['muted']).grid(
+            row=1, column=0, columnspan=3, sticky='w', pady=(8, 0))
 
         body = ttk.Frame(self.root_window)
-        body.pack(fill='both', expand=True, padx=8, pady=(0, 4))
+        body.pack(fill='both', expand=True, padx=10, pady=(0, 8))
+        body.columnconfigure(0, weight=1)
+        body.rowconfigure(0, weight=1)
 
         content = ttk.Frame(body)
-        content.pack(side='left', fill='both', expand=True)
+        content.grid(row=0, column=0, sticky='nsew')
 
-        sidebar = ttk.Frame(body, width=190)
-        sidebar.pack(side='right', fill='y', padx=(10, 0))
-        sidebar.pack_propagate(False)
+        sidebar = ttk.Frame(body, width=210)
+        sidebar.grid(row=0, column=1, sticky='ns', padx=(12, 0))
+        sidebar.grid_propagate(False)
         ttk.Label(sidebar, text='Help', font=(self.ui_font, 11, 'bold')).pack(
-            fill='x', pady=(8, 6))
+            anchor='w', fill='x', pady=(8, 6))
         self.btn_manual = ttk.Button(sidebar, text='Open PDF Manual', style='Accent.TButton',
                                      command=self.open_manual)
-        self.btn_manual.pack(fill='x', padx=10, pady=3)
+        self.btn_manual.pack(fill='x', pady=4)
         self.btn_theme = ttk.Button(sidebar, text='Use dark mode' if not self.dark else 'Use light mode',
                                     command=self.toggle_theme)
-        self.btn_theme.pack(fill='x', padx=10, pady=3)
-        ttk.Button(sidebar, text='About', command=self.about).pack(fill='x', padx=10, pady=3)
-        ttk.Button(sidebar, text='Uninstall (remove all data)',
-                   command=self.uninstall).pack(fill='x', padx=10, pady=3)
-        sidebar_note = ('The manual is a step-by-step PDF guide with screenshots for every '
-                        'screen. It is saved as EmailArchiveTool_Manual.pdf next to '
-                        'the program.')
-        ttk.Label(sidebar, text=sidebar_note, wraplength=170, justify='left',
-                  foreground=THEME['muted']).pack(fill='x', padx=10, pady=(10, 0))
+        self.btn_theme.pack(fill='x', pady=4)
+        ttk.Button(sidebar, text='About', command=self.about).pack(fill='x', pady=4)
+        ttk.Button(sidebar, text='Uninstall', command=self.uninstall).pack(fill='x', pady=4)
+        sidebar_note = ('Requires a step-by-step PDF guide with screenshots for every '
+                        'screen, saved as EmailArchiveTool_Manual.pdf next to the program. '
+                        'Uninstall removes all saved data.')
+        ttk.Label(sidebar, text=sidebar_note, wraplength=190, justify='left',
+                  foreground=THEME['muted']).pack(fill='x', pady=(12, 0))
 
         bar = ttk.Frame(content)
-        bar.pack(fill='x', pady=2)
-        ttk.Button(bar, text='Fetch emails', style='Accent.TButton', command=self.fetch).pack(side='left', padx=3)
-        ttk.Button(bar, text='Archive selected', style='Accent.TButton', command=self.archive).pack(side='left', padx=3)
+        bar.pack(fill='x', pady=(2, 6))
+        ttk.Button(bar, text='Fetch emails', width=14, style='Accent.TButton',
+                   command=self.fetch).pack(side='left', padx=(0, 8))
+        ttk.Button(bar, text='Archive selected', width=16, style='Accent.TButton',
+                   command=self.archive).pack(side='left', padx=8)
         for text, command in (('Export Excel', self.export_excel), ('Clear log', self.clear_log)):
-            ttk.Button(bar, text=text, command=command).pack(side='left', padx=3)
-        ttk.Button(bar, text='Open archive folder ', command=lambda: _open_path(self.folder)).pack(side='left', padx=3)
-        ttk.Button(bar, text='Open config ', command=lambda: _open_path(self.config_path)).pack(side='left', padx=3)
+            ttk.Button(bar, text=text, width=14, command=command).pack(side='left', padx=8)
+        ttk.Button(bar, text='Open folder', width=12,
+                   command=lambda: _open_path(self.folder)).pack(side='left', padx=8)
+        ttk.Button(bar, text='Open config', width=12,
+                   command=lambda: _open_path(self.config_path)).pack(side='left', padx=8)
 
         panes = ttk.PanedWindow(content, orient='vertical')
         panes.pack(fill='both', expand=True, pady=4)
