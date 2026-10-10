@@ -774,6 +774,8 @@ class MailToolApp:
                    command=lambda: _open_path(os.path.join(self.folder, 'Attachments'))).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Export view',
                    command=self.export_archive_view).pack(side='left', padx=3)
+        ttk.Button(arch_actions, text='Regenerate PDFs',
+                   command=self.regenerate_pdfs).pack(side='left', padx=3)
 
         dash_frame = ttk.Frame(notes)
         notes.add(dash_frame, text='Dashboard')
@@ -1186,6 +1188,22 @@ class MailToolApp:
             self.status(f'Export failed: {exc}')
             return
         self.status(f'Exported {len(rows)} row(s) to {path}')
+
+    def regenerate_pdfs(self):
+        if not self.log_rows:
+            self.status('Archive log is empty - nothing to regenerate.')
+            return
+        if not _messagebox('ask', 'Regenerate PDFs',
+                           'Rebuild every archived PDF from the saved .eml files?\n'
+                           'This overwrites the PDFs in the PDF folder and removes the '
+                           'OneDrive/Outlook link clutter from the message bodies.'):
+            return
+        self.run_worker(self._worker_rebuild_pdfs)
+
+    def _worker_rebuild_pdfs(self):
+        result = archive.rebuild_pdfs(self.folder, lambda text: self.queue.put(('log', text)))
+        self.queue.put(('log', f'Rebuilt {result["rebuilt"]} PDF(s), skipped {result["skipped"]}.'))
+        self.queue.put(('status', f'Rebuilt {result["rebuilt"]} PDF(s) from saved emails.'))
 
     def clear_archive_filters(self):
         self.var_arch_search.set('')
@@ -1628,6 +1646,8 @@ def _open_path(path):
 
 def _messagebox(kind, title, message):
     import tkinter.messagebox as _mb
+    if kind == 'ask':
+        return _mb.askyesno(title, message)
     func = {'info': _mb.showinfo, 'warning': _mb.showwarning, 'error': _mb.showerror}.get(kind, _mb.showinfo)
     func(title, message)
 

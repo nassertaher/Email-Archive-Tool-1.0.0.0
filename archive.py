@@ -74,6 +74,9 @@ ONEDRIVE_STRONG_RE = re.compile(
     r'|mediap\.svc\.ms|microsoftpersonalcontent\.com|fluentui-resources'
     r'|cloud_blue_16x16|file-icon|^\s*\[', re.IGNORECASE)
 ONEDRIVE_WEAK_RE = re.compile(r'1drv\.ms|tempauth', re.IGNORECASE)
+LINK_CLUTTER_RE = re.compile(
+    r'^\s*[\u200b\ufeff]*\s*(?:\[[^\]\n]*\]\s*)?[^<>\n]*'
+    r'<(?:https?://|mailto:)[^>\n]*>\s*[\u200b\ufeff]*\s*$')
 BODY_WRAP_WIDTH = 70
 VALUE_WRAP_WIDTH = 60
 HEADER_FETCH_QUERY = '(UID INTERNALDATE FLAGS BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID REFERENCES IN-REPLY-TO)] BODYSTRUCTURE)'
@@ -1398,6 +1401,7 @@ def split_parts(message):
 
 
 def normalize_plain(text):
+    text = text.replace('\u200b', '').replace('\ufeff', '')
     text = text.replace('\r\n', '\n').replace('\r', '\n').replace('\xa0', ' ')
     lines = [line.rstrip() for line in text.split('\n')]
     output = []
@@ -1416,37 +1420,46 @@ def normalize_plain(text):
 def strip_onedrive_footer(text):
     """Remove Outlook web "insert link" clutter from a message body.
 
-    Outlook.com pastes shared OneDrive files as a block of lines made of
-    Microsoft icon/thumbnail/asset URLs, tempauth chains and 1drv.ms share
-    links. A contiguous run of such lines is removed whenever it contains
-    at least one strong (asset/icon/thumbnail) signature. A normal sentence
-    that merely mentions a share link (weak signature only) is left intact.
+    Outlook.com pastes shared OneDrive files as lines made of Microsoft
+    icon/thumbnail/asset URLs, tempauth chains, 1drv.ms share links and
+    "filename<share-url>" link lines. A contiguous run of such lines is
+    removed whenever it contains a strong signature (asset/icon/thumbnail)
+    or a pure link-clutter line. A normal sentence that merely mentions a
+    share link in passing is left intact.
     """
-    lines = str(text or '').split('\n')
-    if not any(ONEDRIVE_STRONG_RE.search(line) for line in lines):
-        return normalize_plain(str(text)) if text != '' else ''
+    def is_junk(line):
+        if not line.strip():
+            return False
+        return bool(ONEDRIVE_STRONG_RE.search(line) or ONEDRIVE_WEAK_RE.search(line)
+                    or LINK_CLUTTER_RE.search(line))
+
+    def is_hard(line):
+        if not line.strip():
+            return False
+        return bool(ONEDRIVE_STRONG_RE.search(line) or LINK_CLUTTER_RE.search(line))
+
+    source = str(text or '')
+    lines = source.split('\n')
+    if not any(is_junk(line) for line in lines):
+        return normalize_plain(source) if source != '' else ''
     output = []
     index = 0
     count = len(lines)
     while index < count:
         line = lines[index]
-        is_junk = (line.strip()
-                   and (ONEDRIVE_STRONG_RE.search(line) or ONEDRIVE_WEAK_RE.search(line)))
-        if not is_junk:
+        if not is_junk(line):
             output.append(line)
             index += 1
             continue
         end = index
-        strong = False
-        while end < count and (not lines[end].strip()
-                               or ONEDRIVE_STRONG_RE.search(lines[end])
-                               or ONEDRIVE_WEAK_RE.search(lines[end])):
-            if lines[end].strip() and ONEDRIVE_STRONG_RE.search(lines[end]):
-                strong = True
+        hard = False
+        while end < count and (not lines[end].strip() or is_junk(lines[end])):
+            if is_hard(lines[end]):
+                hard = True
             end += 1
         while end > index and not lines[end - 1].strip():
             end -= 1
-        if strong:
+        if hard:
             while end < count and not lines[end].strip():
                 end += 1
             index = end
@@ -2092,6 +2105,68 @@ def cmd_fetch(config, root):
 
 def build_message_rows(ref, records, pdf_path):
     return [build_row(ref, record, attachments, pdf_path) for record, attachments in records]
+
+
+def eml_files_for_ref(root, ref):
+    eml_dir = os.path.join(root, 'EML')
+    if not os.path.isdir(eml_dir):
+        return []
+    pattern = re.compile(
+        r'^' + re.escape(ref) + r'(?:-(\d+)(?:-(\d+))?)?\.eml$', re.IGNORECASE)
+    found = []
+    for name in os.listdir(eml_dir):
+        match = pattern.match(name)
+        if match:
+            found.append((int(match.group(1) or 1), int(match.group(2) or 0), name))
+    found.sort()
+    return [os.path.join(eml_dir, name) for _, _, name in found]
+
+
+def attachment_display_names(message, date_text):
+    _, _, parts = split_parts(message)
+    names = []
+    for index, part in enumerate(parts, 1):
+        original = part.get_filename() or default_attachment_name(part, index)
+        names.append(build_attachment_name(original, date_text))
+    return names
+
+
+def rebuild_pdfs(root, notify=None):
+    notify = notify or say
+    config = load_config(os.path.join(root, 'config.json'))
+    refs = []
+    seen = set()
+    for row in read_log_rows(root):
+        ref = str(row.get('Ref No.') or '').strip()
+        if ref and ref not in seen:
+            seen.add(ref)
+            refs.append(ref)
+    total = len(refs)
+    os.makedirs(os.path.join(root, 'PDF'), exist_ok=True)
+    rebuilt = skipped = 0
+    for step, ref in enumerate(refs, 1):
+        emls = eml_files_for_ref(root, ref)
+        if not emls:
+            skipped += 1
+            notify(f'[{step}/{total}] {ref}: no saved .eml file - skipped')
+            continue
+        records = []
+        for path in emls:
+            try:
+                with open(path, 'rb') as handle:
+                    message = message_from_bytes(handle.read(), policy=policy.default)
+            except (OSError, ValueError) as exc:
+                notify(f'[{step}/{total}] {ref}: cannot read {os.path.basename(path)} ({exc})')
+                continue
+            record = build_record(message, config)
+            records.append((record, attachment_display_names(message, record['date'])))
+        if not records:
+            skipped += 1
+            continue
+        make_pdf(os.path.join(root, 'PDF', ref + '.pdf'), ref, records)
+        rebuilt += 1
+        notify(f'[{step}/{total}] {ref}: rebuilt PDF ({len(records)} message(s))')
+    return {'total': total, 'rebuilt': rebuilt, 'skipped': skipped}
 
 
 def eml_path(ref, index, eml_dir):
