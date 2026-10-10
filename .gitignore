@@ -29,3 +29,6 @@ __pycache__/
 # Editors
 .idea/
 .vscode/
+
+# Local AI instructions (travels with the folder, not published)
+AGENTS.md
