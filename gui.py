@@ -984,9 +984,9 @@ class MailToolApp:
     def refresh_archive(self):
         self.log_rows = archive.read_log_rows(self.folder)
         agencies = sorted({str(row.get('Agency') or '').strip() for row in self.log_rows
-                           if str(row.get('Agency') or '').strip()})
+                           if str(row.get('Agency') or '').strip() not in ('', archive.DASH)})
         actions = sorted({str(row.get('Action') or '').strip() for row in self.log_rows
-                          if str(row.get('Action') or '').strip()})
+                          if str(row.get('Action') or '').strip() not in ('', archive.DASH)})
         self.agency_box['values'] = ('',) + tuple(agencies)
         self.action_box['values'] = ('',) + tuple(actions)
         if self.var_arch_agency.get() not in self.agency_box['values']:
