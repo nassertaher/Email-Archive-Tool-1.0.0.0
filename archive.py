@@ -1531,6 +1531,38 @@ def eml_body(path):
         return f'(could not read the message body: {exc})'
 
 
+_QUOTE_SEPARATOR_RE = re.compile(r'(?m)^[ \t]*(?:_{5,}|-{5,}|={5,}|\*{5,})[ \t]*$')
+_QUOTE_QUOTED_LINE_RE = re.compile(r'(?m)^[ \t]*>')
+_QUOTE_ORIGINAL_RE = re.compile(
+    r'(?im)^[ \t]*-{2,}[ \t]*(?:original message|forwarded message|'
+    r'الرسالة الأصلية|رسالة محوّلة)[ \t]*-{2,}')
+_QUOTE_GMAIL_RE = re.compile(r'(?im)^[ \t]*On .{3,} wrote:[ \t]*$')
+_QUOTE_GMAIL_AR_RE = re.compile(r'(?m)^[ \t]*في .{3,} كتب:[ \t]*$')
+_QUOTE_FROM_RE = re.compile(r'(?im)^[ \t]*(?:From|من):[ \t]*\S.*$')
+_QUOTE_FROM_FOLLOW_RE = re.compile(
+    r'(?im)^[ \t]*(?:Sent|To|Cc|Subject|Date|تم الإرسال|أُرسل|أرسل|إلى|الموضوع|نسخة):')
+
+
+def strip_quoted_reply(text):
+    if not text:
+        return text
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    cut = len(text)
+    for pattern in (_QUOTE_SEPARATOR_RE, _QUOTE_ORIGINAL_RE, _QUOTE_GMAIL_RE,
+                    _QUOTE_GMAIL_AR_RE, _QUOTE_QUOTED_LINE_RE):
+        match = pattern.search(text)
+        if match:
+            cut = min(cut, match.start())
+    for match in _QUOTE_FROM_RE.finditer(text):
+        if _QUOTE_FROM_FOLLOW_RE.search(text, match.end(), match.end() + 500):
+            cut = min(cut, match.start())
+            break
+    new_text = text[:cut].strip()
+    if not new_text:
+        return '(no new text in this message - it only quotes earlier messages)'
+    return new_text
+
+
 def build_record(message, config, fallback_date=''):
     from_name, from_email = split_address(str(message.get('from') or ''))
     subject = str(message.get('subject') or '').strip() or DASH

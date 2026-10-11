@@ -1341,7 +1341,7 @@ class MailToolApp:
         self.var_edit_notes.set('' if notes == archive.DASH else notes)
         ref = str(row.get('Ref No.') or '').strip()
         eml = self._archive_eml_path(ref, row)
-        body = archive.eml_body(eml) if eml else '(no saved .eml for this record)'
+        body = archive.strip_quoted_reply(archive.eml_body(eml)) if eml else '(no saved .eml for this record)'
         self._set_archive_detail(body)
 
     def _clear_archive_form(self):
