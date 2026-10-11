@@ -322,13 +322,39 @@ class SettingsDialog:
         self.window = tk.Toplevel(app.root_window)
         self.window.title('Settings - email, Azure and IMAP')
         self.window.transient(app.root_window)
-        self.window.resizable(False, False)
+        self.window.resizable(True, True)
         self.window.configure(bg=THEME['bg'])
         self.links = []
         config = app.config
-        body = ttk.Frame(self.window, padding=12)
-        body.pack(fill='both', expand=True)
+
+        buttons = ttk.Frame(self.window, padding=(12, 0, 12, 12))
+        buttons.pack(side='bottom', fill='x')
+        ttk.Button(buttons, text='Save', style='Accent.TButton',
+                   command=self.on_save).pack(side='right', padx=(6, 0))
+        ttk.Button(buttons, text='Cancel', command=self.window.destroy).pack(side='right')
+
+        outer = ttk.Frame(self.window)
+        outer.pack(side='top', fill='both', expand=True)
+        canvas = tk.Canvas(outer, highlightthickness=0, bg=THEME['bg'])
+        vbar = ttk.Scrollbar(outer, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=vbar.set)
+        vbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        body = ttk.Frame(canvas, padding=12)
         body.columnconfigure(1, weight=1)
+        window_item = canvas.create_window((0, 0), window=body, anchor='nw')
+
+        def _on_body_config(event):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+
+        def _on_canvas_config(event):
+            canvas.itemconfigure(window_item, width=event.width)
+
+        def _on_wheel(event):
+            canvas.yview_scroll(int(-event.delta / 120), 'units')
+
+        body.bind('<Configure>', _on_body_config)
+        canvas.bind('<Configure>', _on_canvas_config)
 
         def add_field(row, label, widget):
             ttk.Label(body, text=label).grid(row=row, column=0, sticky='e', padx=(0, 8), pady=3)
@@ -427,10 +453,19 @@ class SettingsDialog:
 
         self.on_provider_changed()
 
-        buttons = ttk.Frame(self.window, padding=(12, 0, 12, 12))
-        buttons.pack(fill='x')
-        ttk.Button(buttons, text='Save', style='Accent.TButton', command=self.on_save).pack(side='right', padx=(6, 0))
-        ttk.Button(buttons, text='Cancel', command=self.window.destroy).pack(side='right')
+        def _bind_wheel(widget):
+            widget.bind('<MouseWheel>', _on_wheel)
+            for child in widget.winfo_children():
+                _bind_wheel(child)
+
+        _bind_wheel(self.window)
+        self.window.update_idletasks()
+        content_w = body.winfo_reqwidth() + vbar.winfo_reqwidth() + 30
+        content_h = body.winfo_reqheight() + buttons.winfo_reqheight() + 30
+        sw = self.window.winfo_screenwidth()
+        sh = self.window.winfo_screenheight()
+        self.window.geometry(f'{min(content_w, sw - 40)}x{min(content_h, sh - 100)}')
+        self.window.minsize(min(420, content_w), min(320, sh - 140))
 
     def provider_key(self):
         label = self.var_provider.get()
