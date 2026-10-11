@@ -561,8 +561,8 @@ class MailToolApp:
         win.update_idletasks()
         sw = win.winfo_screenwidth()
         sh = win.winfo_screenheight()
-        width = min(1280, max(900, sw - 80))
-        height = min(840, max(640, sh - 110))
+        width = min(1360, max(900, sw - 120))
+        height = min(1040, max(680, sh - 130))
         width = min(width, sw)
         height = min(height, sh)
         x = max(0, (sw - width) // 2)
@@ -744,8 +744,18 @@ class MailToolApp:
         for var in (self.var_arch_search, self.var_arch_from, self.var_arch_to,
                     self.var_arch_agency, self.var_arch_action, self.var_arch_attach):
             var.trace_add('write', lambda *args: self.populate_archive())
+        arch_paned = ttk.PanedWindow(archive_frame, orient='vertical')
+        arch_paned.grid(row=2, column=0, columnspan=2, sticky='nsew')
+        archive_frame.rowconfigure(2, weight=1)
+        archive_frame.columnconfigure(0, weight=1)
+
+        table_pane = ttk.Frame(arch_paned)
+        table_pane.rowconfigure(0, weight=1)
+        table_pane.columnconfigure(0, weight=1)
+        arch_paned.add(table_pane, weight=1)
+
         self.archive_tree = ttk.Treeview(
-            archive_frame,
+            table_pane, height=5,
             columns=('ref', 'date', 'agency', 'sender', 'subject',
                      'action', 'response', 'attachments'),
             show='headings', selectmode='browse')
@@ -757,64 +767,74 @@ class MailToolApp:
             self.archive_tree.heading(
                 key, text=text, command=lambda k=key: self.sort_archive(k))
             self.archive_tree.column(key, width=width, anchor='w', stretch=stretch)
-        arch_y = ttk.Scrollbar(archive_frame, orient='vertical', command=self.archive_tree.yview)
+        arch_y = ttk.Scrollbar(table_pane, orient='vertical', command=self.archive_tree.yview)
         self.archive_tree.configure(yscrollcommand=arch_y.set)
-        self.archive_tree.grid(row=2, column=0, sticky='nsew')
-        arch_y.grid(row=2, column=1, sticky='ns')
-        archive_frame.rowconfigure(2, weight=3)
-        archive_frame.columnconfigure(0, weight=1)
+        self.archive_tree.grid(row=0, column=0, sticky='nsew')
+        arch_y.grid(row=0, column=1, sticky='ns')
         self.archive_tree.bind('<Double-1>', lambda event: self.open_archive_pdf())
         self.archive_tree.bind('<<TreeviewSelect>>', lambda event: self.show_archive_detail())
-        ttk.Label(archive_frame, text='Selected record').grid(row=3, column=0, sticky='w', pady=(6, 0))
-        detail = ttk.Frame(archive_frame)
-        detail.grid(row=4, column=0, columnspan=2, sticky='nsew')
-        detail.columnconfigure(1, weight=1)
-        detail.rowconfigure(0, weight=1)
-        form = ttk.Frame(detail)
-        form.grid(row=0, column=0, sticky='nsw', padx=(0, 8))
-        self.arch_detail = tk_text(detail)
-        self.arch_detail.grid(row=0, column=1, sticky='nsew')
-        self.arch_detail.configure(bg=THEME['field'], fg=THEME['text'], insertbackground=THEME['text'],
-                                   relief='flat', padx=8, pady=6, font=(self.ui_font, 9), height=9)
-        self.arch_detail.configure(state='disabled')
-        archive_frame.rowconfigure(4, weight=2)
+
+        detail_pane = ttk.Frame(arch_paned)
+        detail_pane.rowconfigure(2, weight=1)
+        detail_pane.columnconfigure(0, weight=1)
+        arch_paned.add(detail_pane, weight=1)
+
         self.var_edit_ref = _var('')
         self.var_edit_subject = _var('')
         self.var_edit_sender = _var('')
+        self.var_edit_recipients = _var('')
+        self.var_edit_cc = _var('')
         self.var_edit_trans = _var('')
         self.var_edit_attach = _var('')
         self.var_edit_agency = _var('')
         self.var_edit_action = _var('')
         self.var_edit_response = _var('')
         self.var_edit_notes = _var('')
+
+        fields = ttk.Frame(detail_pane)
+        fields.grid(row=0, column=0, sticky='we', pady=(4, 0))
+        fields.columnconfigure(0, weight=1)
+        fields.columnconfigure(1, weight=1)
+        form = ttk.LabelFrame(fields, text='Envelope')
+        form.grid(row=0, column=0, sticky='nsew', padx=(0, 6))
+        form.columnconfigure(1, weight=1)
+        tracking = ttk.LabelFrame(fields, text='Tracking')
+        tracking.grid(row=0, column=1, sticky='nsew')
+        tracking.columnconfigure(1, weight=1)
+
         row = 0
-        ttk.Label(form, text='Ref No.').grid(row=row, column=0, sticky='w', pady=1)
-        ttk.Label(form, textvariable=self.var_edit_ref).grid(row=row, column=1, sticky='w', pady=1); row += 1
-        ttk.Label(form, text='Subject').grid(row=row, column=0, sticky='nw', pady=1)
-        ttk.Label(form, textvariable=self.var_edit_subject, wraplength=250,
-                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
-        ttk.Label(form, text='Agency').grid(row=row, column=0, sticky='w', pady=1)
-        self.arch_agency_edit = ttk.Combobox(form, textvariable=self.var_edit_agency, width=30, values=('',))
-        self.arch_agency_edit.grid(row=row, column=1, sticky='we', pady=1); row += 1
-        ttk.Label(form, text='Action').grid(row=row, column=0, sticky='w', pady=1)
-        self.arch_action_edit = ttk.Combobox(form, textvariable=self.var_edit_action, width=30, values=('',))
-        self.arch_action_edit.grid(row=row, column=1, sticky='we', pady=1); row += 1
-        ttk.Label(form, text='Response Date').grid(row=row, column=0, sticky='w', pady=1)
-        ttk.Entry(form, textvariable=self.var_edit_response,
-                  width=32).grid(row=row, column=1, sticky='we', pady=1); row += 1
-        ttk.Label(form, text='Notes').grid(row=row, column=0, sticky='w', pady=1)
-        ttk.Entry(form, textvariable=self.var_edit_notes,
-                  width=32).grid(row=row, column=1, sticky='we', pady=1); row += 1
-        ttk.Label(form, text='Transaction Date').grid(row=row, column=0, sticky='w', pady=1)
-        ttk.Label(form, textvariable=self.var_edit_trans).grid(row=row, column=1, sticky='w', pady=1); row += 1
-        ttk.Label(form, text='Sender').grid(row=row, column=0, sticky='nw', pady=1)
-        ttk.Label(form, textvariable=self.var_edit_sender, wraplength=250,
-                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
-        ttk.Label(form, text='Attachments').grid(row=row, column=0, sticky='nw', pady=1)
-        ttk.Label(form, textvariable=self.var_edit_attach, wraplength=250,
-                  justify='left').grid(row=row, column=1, sticky='w', pady=1); row += 1
+        for label, var in (('Ref No.', self.var_edit_ref), ('Subject', self.var_edit_subject),
+                           ('Transaction Date', self.var_edit_trans), ('Sender', self.var_edit_sender),
+                           ('Recipients', self.var_edit_recipients), ('CC', self.var_edit_cc),
+                           ('Attachments', self.var_edit_attach)):
+            ttk.Label(form, text=label).grid(row=row, column=0, sticky='nw', pady=1)
+            ttk.Label(form, textvariable=var, wraplength=230, justify='left').grid(
+                row=row, column=1, sticky='w', pady=1)
+            row += 1
+
+        ttk.Label(tracking, text='Agency').grid(row=0, column=0, sticky='w', pady=1)
+        self.arch_agency_edit = ttk.Combobox(tracking, textvariable=self.var_edit_agency, width=26, values=('',))
+        self.arch_agency_edit.grid(row=0, column=1, sticky='we', pady=1)
+        ttk.Label(tracking, text='Action').grid(row=1, column=0, sticky='w', pady=1)
+        self.arch_action_edit = ttk.Combobox(tracking, textvariable=self.var_edit_action, width=26, values=('',))
+        self.arch_action_edit.grid(row=1, column=1, sticky='we', pady=1)
+        ttk.Label(tracking, text='Response Date').grid(row=2, column=0, sticky='w', pady=1)
+        ttk.Entry(tracking, textvariable=self.var_edit_response,
+                  width=28).grid(row=2, column=1, sticky='we', pady=1)
+        ttk.Label(tracking, text='Notes').grid(row=3, column=0, sticky='w', pady=1)
+        ttk.Entry(tracking, textvariable=self.var_edit_notes,
+                  width=28).grid(row=3, column=1, sticky='we', pady=1)
+
+        ttk.Label(detail_pane, text="Message (the sender's own text)").grid(
+            row=1, column=0, sticky='w', pady=(6, 0))
+        self.arch_detail = tk_text(detail_pane)
+        self.arch_detail.grid(row=2, column=0, sticky='nsew')
+        self.arch_detail.configure(bg=THEME['field'], fg=THEME['text'], insertbackground=THEME['text'],
+                                   relief='flat', padx=8, pady=6, font=(self.ui_font, 9), height=7)
+        self.arch_detail.configure(state='disabled')
+
         arch_actions = ttk.Frame(archive_frame)
-        arch_actions.grid(row=5, column=0, columnspan=2, sticky='we', pady=(3, 0))
+        arch_actions.grid(row=3, column=0, columnspan=2, sticky='we', pady=(3, 0))
         ttk.Button(arch_actions, text='Save changes', command=self.save_archive_detail).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Revert', command=self.show_archive_detail).pack(side='left', padx=3)
         ttk.Button(arch_actions, text='Open PDF', command=self.open_archive_pdf).pack(side='left', padx=3)
@@ -1328,6 +1348,10 @@ class MailToolApp:
         self.var_edit_ref.set(str(row.get('Ref No.') or ''))
         self.var_edit_subject.set(str(row.get('Subject') or ''))
         self.var_edit_sender.set(str(row.get('Sender Name') or '') or str(row.get('Sender Email') or ''))
+        recipients = str(row.get('Recipients') or '')
+        self.var_edit_recipients.set('' if recipients == archive.DASH else recipients)
+        cc = str(row.get('CC') or '')
+        self.var_edit_cc.set('' if cc == archive.DASH else cc)
         self.var_edit_trans.set(str(row.get('Transaction Date') or ''))
         self.var_edit_attach.set(str(row.get('Attachments') or ''))
         agency = str(row.get('Agency') or '')
@@ -1346,6 +1370,7 @@ class MailToolApp:
 
     def _clear_archive_form(self):
         for var in (self.var_edit_ref, self.var_edit_subject, self.var_edit_sender,
+                    self.var_edit_recipients, self.var_edit_cc,
                     self.var_edit_trans, self.var_edit_attach, self.var_edit_agency,
                     self.var_edit_action, self.var_edit_response, self.var_edit_notes):
             var.set('')
