@@ -631,16 +631,6 @@ class MailToolApp:
         self.status_var = _var('')
         ttk.Label(content, textvariable=self.status_var, anchor='w').pack(
             side='bottom', fill='x', pady=(0, 4))
-        kw_frame = ttk.Frame(content)
-        kw_frame.pack(side='bottom', fill='x', pady=(0, 6))
-        ttk.Label(kw_frame, text='Hidden senders (exclude_keywords):').pack(side='left')
-        self.keywords = tk.Listbox(kw_frame, height=3, exportselection=False)
-        self.keywords.pack(side='left', fill='x', expand=True, padx=6)
-        self.keywords.configure(bg=THEME['field'], fg=THEME['text'],
-                                selectbackground=THEME['accent'], selectforeground='#ffffff',
-                                highlightthickness=0, font=(self.ui_font, 9))
-        ttk.Button(kw_frame, text='Remove', command=self.remove_keyword).pack(side='left', padx=2)
-        ttk.Button(kw_frame, text='Clear all', command=self.clear_keywords).pack(side='left', padx=2)
 
         panes = ttk.PanedWindow(content, orient='vertical')
         panes.pack(fill='both', expand=True, pady=4)
@@ -704,6 +694,16 @@ class MailToolApp:
         self.tree.tag_configure('unread', font=(self.ui_font, 9, 'bold'), foreground=THEME['danger'])
         self.tree.tag_configure('alt', background=THEME['alt'])
         self.tree.bind('<Button-1>', self.on_click)
+        kw_frame = ttk.Frame(emails_frame)
+        kw_frame.grid(row=3, column=0, columnspan=2, sticky='we', pady=(4, 0))
+        ttk.Label(kw_frame, text='Hidden senders (exclude_keywords):').pack(side='left')
+        self.keywords = tk.Listbox(kw_frame, height=3, exportselection=False)
+        self.keywords.pack(side='left', fill='x', expand=True, padx=6)
+        self.keywords.configure(bg=THEME['field'], fg=THEME['text'],
+                                selectbackground=THEME['accent'], selectforeground='#ffffff',
+                                highlightthickness=0, font=(self.ui_font, 9))
+        ttk.Button(kw_frame, text='Remove', command=self.remove_keyword).pack(side='left', padx=2)
+        ttk.Button(kw_frame, text='Clear all', command=self.clear_keywords).pack(side='left', padx=2)
 
         archive_frame = ttk.Frame(notes)
         notes.add(archive_frame, text='Archive')
