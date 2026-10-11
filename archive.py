@@ -1511,9 +1511,12 @@ def extract_body(message):
     chunks = [chunk for chunk in chunks if chunk]
     if chunks:
         return '\n\n'.join(chunks)
-    chunks = [strip_onedrive_footer(html_to_text(decode_part(part)))
-              for part in html]
-    chunks = [chunk for chunk in chunks if chunk]
+    chunks = []
+    for part in html:
+        html_part = re.split(r'(?is)<blockquote\b', decode_part(part), maxsplit=1)[0]
+        chunk = strip_onedrive_footer(html_to_text(html_part))
+        if chunk:
+            chunks.append(chunk)
     if chunks:
         return '\n\n'.join(chunks)
     return '(no message body)'
@@ -1579,7 +1582,7 @@ def build_record(message, config, fallback_date=''):
         'from_email': from_email,
         'recipients': recipients,
         'cc': cc,
-        'body': extract_body(message),
+        'body': strip_quoted_reply(extract_body(message)),
         'agency': agency_for(from_email, config),
         'notes': build_notes(from_name, from_email, subject),
     }
