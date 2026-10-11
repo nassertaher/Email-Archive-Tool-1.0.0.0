@@ -125,19 +125,20 @@ python gui.py          :: or:  python gui.py --config D:\path\to\config.json
 ```
 
 - **Settings bar** - the email address up top plus a **Settings...** button with a dialog for everything else: a **mail-provider dropdown** (Outlook.com / Gmail / Yahoo / Other) that pre-fills the IMAP server, port and SSL, a **sign-in method** line that changes per provider, the **app password** field (Gmail and Yahoo - with links to create one), the **Azure application (client) ID** and tenant (Outlook.com only), fetch limit and the conversation-threads toggle. Every field has plain-text guidance and clickable links, all saved to `config.json`. Changing the email or the application ID warns that the Microsoft sign-in will need to be re-done on the next fetch.
-- **Fetch emails** - runs in a background thread; every status line appears in the log pane while the list fills with the conversation threads.
+- **Fetch emails** - runs in a background thread; every status line appears in the **Log tab** while the list fills with the conversation threads.
 - **Keep / Hide checkboxes** - click the **Keep** column of a thread to mark it for archiving (the whole thread); click the **Hide** column of a sender to add its **name and email address** to `exclude_keywords` immediately. Archived messages show a tick in the Keep column.
 - **Filter box** above the list - type any text to keep only messages whose **sender or subject** contains it. Unread messages (IMAP `\Seen` flag) are shown in **bold red**.
 - **Open emails and files** - after archiving, select a record on the **Archive tab** and use **Open PDF**, **Open EML** or **Open attachments folder** to view its files.
 - **Archive selected** (whole threads, incremental) and **Export Excel**, plus a hidden-senders panel to remove or clear keywords.
 - **Help sidebar** - **Open PDF Manual**, **Use dark mode / Use light mode**, **About**, and **Uninstall (remove all data)**.
+- **Log tab** - the program reports everything it does (connecting, counting, saving, errors) in its own tab, so the main view stays clean.
 
 ## 5. Archive browser, dashboard and export
 
 The GUI adds read-and-edit views that work directly on `log.csv` / `log.xlsx`:
 
-- **Archive tab** - shows the whole register (one row per message). Click any heading to sort; filter by free text, transaction-date range, agency, action, or whether the row has attachments.
-- **Selected record** - pick a row to see all its fields plus the full message body (read from the saved `.eml`). Edit **Agency**, **Action**, **Response Date** and **Notes** and press **Save changes** - `log.csv` and `log.xlsx` are written together. **Open PDF**, **Open EML** and **Open attachments folder** are next to it.
+- **Archive tab** - shows the whole register (one row per message). Click any heading to sort; filter by free text, From, To, agency, action, or whether the row has attachments.
+- **Selected record** - pick a row to see its **Envelope** (Ref No., Subject, Transaction Date, Sender, Recipients, CC, Attachments) and editable **Tracking** fields (Agency, Action, Response Date, Notes), with the sender's own message text below (quoted history from earlier messages is trimmed away). Press **Save changes** - `log.csv` and `log.xlsx` are written together. **Open PDF**, **Open EML** and **Open attachments folder** are next to it.
 - **Import CSV** - merge any CSV into the register. Columns are matched by name (`Ref`, `Subject`, `Agency`, `Date`, ...); rows whose `Ref No.` already exists are skipped, so imports are safe to repeat.
 - **Export view** - save exactly the rows currently matching the filters to a new `.csv` or `.xlsx`.
 - **Dashboard tab** - totals (records, threads, with attachments, outstanding), a breakdown **by agency** and **by month**, and the list of **outstanding actions** (rows still missing an Action or Response Date).

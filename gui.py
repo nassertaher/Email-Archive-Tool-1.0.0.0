@@ -551,7 +551,7 @@ class MailToolApp:
         self.build_widgets()
         LOG_TO_UI.append(self.log)
         self.status(f'Ready - archive folder: {self.folder}')
-        self.log(f'Config: {self.config_path}')
+        self.log('Settings loaded from config.json.')
         self.root_window.protocol('WM_DELETE_WINDOW', self.on_close)
         self.root_window.after(self.TICK, self.poll)
 
@@ -632,11 +632,8 @@ class MailToolApp:
         ttk.Label(content, textvariable=self.status_var, anchor='w').pack(
             side='bottom', fill='x', pady=(0, 4))
 
-        panes = ttk.PanedWindow(content, orient='vertical')
-        panes.pack(fill='both', expand=True, pady=4)
-
-        notes = ttk.Notebook(panes)
-        panes.add(notes, weight=3)
+        notes = ttk.Notebook(content)
+        notes.pack(fill='both', expand=True, pady=4)
 
         emails_frame = ttk.Frame(notes)
         notes.add(emails_frame, text='Emails')
@@ -891,8 +888,8 @@ class MailToolApp:
         dash_frame.columnconfigure(0, weight=1)
         dash_frame.columnconfigure(1, weight=1)
 
-        log_frame = ttk.Frame(panes)
-        panes.add(log_frame, weight=1)
+        log_frame = ttk.Frame(notes)
+        notes.add(log_frame, text='Log')
         self.log_text = tk_text(log_frame)
         self.log_text.grid(row=0, column=0, sticky='nsew')
         log_y = ttk.Scrollbar(log_frame, orient='vertical', command=self.log_text.yview)
